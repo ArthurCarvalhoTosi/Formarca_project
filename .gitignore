@@ -131,9 +131,11 @@ App_Data/*.ldf
 .vscode/*
 !.vscode/extensions.json
 
-# ASP.NET
+# ASP.NET / local config (matches any depth, including src/)
 **/wwwroot/lib/
-appsettings.*.local.json
+**/appsettings*.json
+**/launchSettings.json
+**/secrets.json
 *.pfx
 
 # =========================

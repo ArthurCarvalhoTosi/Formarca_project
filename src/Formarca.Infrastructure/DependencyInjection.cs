@@ -20,7 +20,7 @@ public static class DependencyInjection
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? "Server=localhost,1433;Database=Formarca;User Id=sa;Password=Your_password123;TrustServerCertificate=True;";
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(connectionString));

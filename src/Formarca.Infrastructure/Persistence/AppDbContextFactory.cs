@@ -19,7 +19,7 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
             .Build();
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? "Server=localhost,1433;Database=Formarca;User Id=sa;Password=Your_password123;TrustServerCertificate=True;";
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlServer(connectionString)
