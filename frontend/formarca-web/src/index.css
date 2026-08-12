@@ -1,0 +1,82 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  background: #f0f4f7;
+  color: #1a2b36;
+}
+
+.app-shell {
+  min-height: 100%;
+}
+
+.sider-brand {
+  display: flex;
+  align-items: center;
+  height: 64px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e8eef2;
+}
+
+.sider-brand a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-inline: 20px !important;
+  border-bottom: 1px solid #e8eef2;
+}
+
+.app-content {
+  margin: 16px;
+}
+
+.app-content-inner {
+  min-height: calc(100vh - 64px - 48px);
+  padding: 24px;
+}
+
+.tenant-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-menu-trigger {
+  cursor: pointer;
+}
+
+.login-page {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(11, 95, 138, 0.16), transparent 45%),
+    linear-gradient(160deg, #eef5f9 0%, #f7fafc 50%, #e8f0f4 100%);
+}
+
+.login-card {
+  width: min(100%, 420px);
+  box-shadow: 0 12px 40px rgba(16, 42, 58, 0.08);
+  padding: 8px;
+}
+
+.login-brand {
+  margin-bottom: 24px;
+}
