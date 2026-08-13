@@ -4,7 +4,6 @@ using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Domain.Tenancy;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.IdentityAccess.Auth.Commands;
 
@@ -21,7 +20,7 @@ public sealed class LoginCommandValidator : AbstractValidator<LoginCommand>
 
 public sealed class LoginCommandHandler(
     IIdentityService identity,
-    IApplicationDbContext db,
+    IGenericRepository repository,
     IJwtTokenService jwt,
     ITenantContext tenantContext) : IRequestHandler<LoginCommand, AuthResultDto>
 {
@@ -42,7 +41,7 @@ public sealed class LoginCommandHandler(
             throw new UnauthorizedAppException("Invalid email or password.");
         }
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(db, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
         Guid? tenantId = request.TenantId;
 
         if (tenantId is null)
@@ -56,8 +55,8 @@ public sealed class LoginCommandHandler(
 
         if (tenantId is not null)
         {
-            var tenantExists = await db.Tenants.AsNoTracking()
-                .AnyAsync(t => t.Id == tenantId && !t.IsDeleted && t.Status == TenantStatus.Active, cancellationToken);
+            var tenantExists = await repository.AnyAsync<Tenant>(
+                t => t.Id == tenantId && !t.IsDeleted && t.Status == TenantStatus.Active, cancellationToken);
             if (!tenantExists && !user.IsPlatformAdmin)
             {
                 throw new ForbiddenException("Tenant is not available.");
@@ -65,7 +64,7 @@ public sealed class LoginCommandHandler(
         }
 
         var (tokens, permissions) = await AuthTokenIssuer.IssueAsync(
-            db, jwt, user.Id, user.Email, user.IsPlatformAdmin, tenantId, cancellationToken);
+            repository, jwt, user.Id, user.Email, user.IsPlatformAdmin, tenantId, cancellationToken);
 
         return new AuthResultDto(
             tokens,

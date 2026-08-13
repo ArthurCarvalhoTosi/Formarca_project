@@ -20,6 +20,7 @@ public static class DatabaseSeeder
         var sp = scope.ServiceProvider;
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
         var db = sp.GetRequiredService<AppDbContext>();
+        var repository = sp.GetRequiredService<Application.Common.Interfaces.IGenericRepository>();
         var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
         var tenantContext = sp.GetRequiredService<Application.Common.Interfaces.ITenantContext>();
 
@@ -27,7 +28,7 @@ public static class DatabaseSeeder
 
         await SeedPermissionsAsync(db, cancellationToken);
         await SeedPlatformAdminAsync(userManager, logger, cancellationToken);
-        await SeedDemoTenantAsync(db, userManager, cancellationToken);
+        await SeedDemoTenantAsync(db, repository, userManager, cancellationToken);
     }
 
     private static async Task SeedPermissionsAsync(AppDbContext db, CancellationToken cancellationToken)
@@ -81,6 +82,7 @@ public static class DatabaseSeeder
 
     private static async Task SeedDemoTenantAsync(
         AppDbContext db,
+        Application.Common.Interfaces.IGenericRepository repository,
         UserManager<ApplicationUser> userManager,
         CancellationToken cancellationToken)
     {
@@ -93,7 +95,7 @@ public static class DatabaseSeeder
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        await Application.IdentityAccess.Auth.AuthTokenIssuer.EnsureDefaultTenantGroupsAsync(db, tenant.Id, cancellationToken);
+        await Application.IdentityAccess.Auth.AuthTokenIssuer.EnsureDefaultTenantGroupsAsync(repository, tenant.Id, cancellationToken);
 
         var admin = await userManager.FindByEmailAsync(PlatformAdminEmail);
         if (admin is null)

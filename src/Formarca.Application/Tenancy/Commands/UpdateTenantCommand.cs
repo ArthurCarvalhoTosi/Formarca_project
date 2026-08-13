@@ -4,7 +4,6 @@ using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Domain.Tenancy;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.Tenancy.Commands;
 
@@ -25,18 +24,18 @@ public sealed class UpdateTenantCommandValidator : AbstractValidator<UpdateTenan
 }
 
 public sealed class UpdateTenantCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<UpdateTenantCommand, TenantDto>
 {
     public async Task<TenantDto> Handle(UpdateTenantCommand request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == request.Id && !t.IsDeleted, cancellationToken)
+        var tenant = await repository.FirstOrDefaultAsync<Tenant>(t => t.Id == request.Id && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
         tenant.Update(request.Name, request.Document, request.Status);
-        await db.SaveChangesAsync(cancellationToken);
+        await repository.CommitAsync(cancellationToken);
 
         return new TenantDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Document, tenant.Status.ToString(), tenant.CreatedAtUtc);
     }

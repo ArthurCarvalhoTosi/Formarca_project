@@ -3,6 +3,7 @@ using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Domain.IdentityAccess;
+using Formarca.Domain.Tenancy;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +24,7 @@ public sealed class CreateGroupCommandValidator : AbstractValidator<CreateGroupC
 }
 
 public sealed class CreateGroupCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<CreateGroupCommand, GroupDto>
 {
     public async Task<GroupDto> Handle(CreateGroupCommand request, CancellationToken cancellationToken)
@@ -32,7 +33,7 @@ public sealed class CreateGroupCommandHandler(
 
         if (request.TenantId is not null)
         {
-            var exists = await db.Tenants.AnyAsync(t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken);
+            var exists = await repository.AnyAsync<Tenant>(t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken);
             if (!exists)
             {
                 throw new NotFoundException("Tenant not found.");
@@ -40,32 +41,32 @@ public sealed class CreateGroupCommandHandler(
         }
 
         var group = Group.Create(request.Name, request.TenantId, request.Description);
-        db.Groups.Add(group);
-        await db.SaveChangesAsync(cancellationToken);
+        repository.Add(group);
+        await repository.CommitAsync(cancellationToken);
 
         if (request.PermissionCodes is { Count: > 0 })
         {
-            var permissions = await db.Permissions
+            var permissions = await repository.Query<Permission>()
                 .Where(p => request.PermissionCodes.Contains(p.Code) && !p.IsDeleted)
                 .ToListAsync(cancellationToken);
 
             foreach (var permission in permissions)
             {
-                db.GroupPermissions.Add(GroupPermission.Create(group.Id, permission.Id));
+                repository.Add(GroupPermission.Create(group.Id, permission.Id));
             }
 
-            await db.SaveChangesAsync(cancellationToken);
+            await repository.CommitAsync(cancellationToken);
         }
 
-        return await MapGroupAsync(db, group.Id, cancellationToken);
+        return await MapGroupAsync(repository, group.Id, cancellationToken);
     }
 
-    internal static async Task<GroupDto> MapGroupAsync(IApplicationDbContext db, Guid groupId, CancellationToken ct)
+    internal static async Task<GroupDto> MapGroupAsync(IGenericRepository repository, Guid groupId, CancellationToken ct)
     {
-        var group = await db.Groups.AsNoTracking().FirstAsync(g => g.Id == groupId, ct);
+        var group = await repository.Query<Group>().FirstAsync(g => g.Id == groupId, ct);
         var codes = await (
-            from gp in db.GroupPermissions.AsNoTracking()
-            join p in db.Permissions.AsNoTracking() on gp.PermissionId equals p.Id
+            from gp in repository.Query<GroupPermission>()
+            join p in repository.Query<Permission>() on gp.PermissionId equals p.Id
             where gp.GroupId == groupId && !gp.IsDeleted && !p.IsDeleted
             select p.Code
         ).ToListAsync(ct);
@@ -90,22 +91,22 @@ public sealed class UpdateGroupCommandValidator : AbstractValidator<UpdateGroupC
 }
 
 public sealed class UpdateGroupCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<UpdateGroupCommand, GroupDto>
 {
     public async Task<GroupDto> Handle(UpdateGroupCommand request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var group = await db.Groups
-            .FirstOrDefaultAsync(g => g.Id == request.Id && !g.IsDeleted, cancellationToken)
+        var group = await repository.FirstOrDefaultAsync<Group>(
+            g => g.Id == request.Id && !g.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Group not found.");
 
         group.Update(request.Name, request.Description);
 
         if (request.PermissionCodes is not null)
         {
-            var existing = await db.GroupPermissions
+            var existing = await repository.Query<GroupPermission>(asNoTracking: false)
                 .Where(gp => gp.GroupId == group.Id && !gp.IsDeleted)
                 .ToListAsync(cancellationToken);
 
@@ -114,52 +115,52 @@ public sealed class UpdateGroupCommandHandler(
                 item.SoftDelete();
             }
 
-            var permissions = await db.Permissions
+            var permissions = await repository.Query<Permission>()
                 .Where(p => request.PermissionCodes.Contains(p.Code) && !p.IsDeleted)
                 .Select(p => p.Id)
                 .ToListAsync(cancellationToken);
 
             foreach (var permissionId in permissions)
             {
-                db.GroupPermissions.Add(GroupPermission.Create(group.Id, permissionId));
+                repository.Add(GroupPermission.Create(group.Id, permissionId));
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
-        return await CreateGroupCommandHandler.MapGroupAsync(db, group.Id, cancellationToken);
+        await repository.CommitAsync(cancellationToken);
+        return await CreateGroupCommandHandler.MapGroupAsync(repository, group.Id, cancellationToken);
     }
 }
 
 public sealed record DeleteGroupCommand(Guid Id) : IRequest;
 
 public sealed class DeleteGroupCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<DeleteGroupCommand>
 {
     public async Task Handle(DeleteGroupCommand request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var group = await db.Groups.FirstOrDefaultAsync(g => g.Id == request.Id && !g.IsDeleted, cancellationToken)
+        var group = await repository.FirstOrDefaultAsync<Group>(g => g.Id == request.Id && !g.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Group not found.");
 
         group.SoftDelete();
-        await db.SaveChangesAsync(cancellationToken);
+        await repository.CommitAsync(cancellationToken);
     }
 }
 
 public sealed record AssignUserToGroupCommand(Guid UserId, Guid GroupId, Guid TenantId) : IRequest;
 
 public sealed class AssignUserToGroupCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<AssignUserToGroupCommand>
 {
     public async Task Handle(AssignUserToGroupCommand request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var group = await db.Groups.AsNoTracking()
-            .FirstOrDefaultAsync(g => g.Id == request.GroupId && !g.IsDeleted, cancellationToken)
+        var group = await repository.FirstOrDefaultAsync<Group>(
+            g => g.Id == request.GroupId && !g.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Group not found.");
 
         if (group.TenantId is not null && group.TenantId != request.TenantId)
@@ -167,21 +168,21 @@ public sealed class AssignUserToGroupCommandHandler(
             throw new ForbiddenException("Group does not belong to the tenant.");
         }
 
-        var membership = await db.UserTenantMemberships.AsNoTracking()
-            .AnyAsync(m => m.UserId == request.UserId && m.TenantId == request.TenantId && m.IsActive && !m.IsDeleted, cancellationToken);
+        var membership = await repository.AnyAsync<UserTenantMembership>(
+            m => m.UserId == request.UserId && m.TenantId == request.TenantId && m.IsActive && !m.IsDeleted, cancellationToken);
         if (!membership)
         {
             throw new ForbiddenException("User is not a member of the tenant.");
         }
 
-        var exists = await db.UserGroupMemberships.AnyAsync(
+        var exists = await repository.AnyAsync<UserGroupMembership>(
             x => x.UserId == request.UserId && x.GroupId == request.GroupId && x.TenantId == request.TenantId && !x.IsDeleted,
             cancellationToken);
 
         if (!exists)
         {
-            db.UserGroupMemberships.Add(UserGroupMembership.Create(request.UserId, request.TenantId, request.GroupId));
-            await db.SaveChangesAsync(cancellationToken);
+            repository.Add(UserGroupMembership.Create(request.UserId, request.TenantId, request.GroupId));
+            await repository.CommitAsync(cancellationToken);
         }
     }
 }

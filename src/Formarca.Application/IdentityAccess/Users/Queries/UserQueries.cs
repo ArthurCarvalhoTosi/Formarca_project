@@ -11,7 +11,7 @@ public sealed record ListUsersQuery(int Page = 1, int PageSize = Paging.DefaultP
 
 public sealed class ListUsersQueryHandler(
     IIdentityService identity,
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<ListUsersQuery, PagedResult<UserDto>>
 {
     public async Task<PagedResult<UserDto>> Handle(ListUsersQuery request, CancellationToken cancellationToken)
@@ -24,7 +24,7 @@ public sealed class ListUsersQueryHandler(
 
         foreach (var user in users)
         {
-            var tenants = await AuthTokenIssuer.GetUserTenantsAsync(db, user.Id, cancellationToken);
+            var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
             result.Add(new UserDto(user.Id, user.Email, user.DisplayName, user.IsPlatformAdmin, user.IsActive, tenants));
         }
 
@@ -36,7 +36,7 @@ public sealed record GetUserByIdQuery(Guid Id) : IRequest<UserDto>;
 
 public sealed class GetUserByIdQueryHandler(
     IIdentityService identity,
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<GetUserByIdQuery, UserDto>
 {
     public async Task<UserDto> Handle(GetUserByIdQuery request, CancellationToken cancellationToken)
@@ -46,7 +46,7 @@ public sealed class GetUserByIdQueryHandler(
         var user = await identity.FindByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException("User not found.");
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(db, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
         return new UserDto(user.Id, user.Email, user.DisplayName, user.IsPlatformAdmin, user.IsActive, tenants);
     }
 }

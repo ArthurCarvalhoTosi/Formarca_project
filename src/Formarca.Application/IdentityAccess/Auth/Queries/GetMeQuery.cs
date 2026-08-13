@@ -10,7 +10,7 @@ public sealed record GetMeQuery : IRequest<CurrentUserDto>;
 public sealed class GetMeQueryHandler(
     ICurrentUser currentUser,
     IIdentityService identity,
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<GetMeQuery, CurrentUserDto>
 {
     public async Task<CurrentUserDto> Handle(GetMeQuery request, CancellationToken cancellationToken)
@@ -25,9 +25,9 @@ public sealed class GetMeQueryHandler(
         var user = await identity.FindByIdAsync(currentUser.UserId.Value, cancellationToken)
             ?? throw new NotFoundException("User not found.");
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(db, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
         var permissions = await AuthTokenIssuer.ResolvePermissionsAsync(
-            db, user.Id, currentUser.TenantId, user.IsPlatformAdmin, cancellationToken);
+            repository, user.Id, currentUser.TenantId, user.IsPlatformAdmin, cancellationToken);
 
         return new CurrentUserDto(
             user.Id,

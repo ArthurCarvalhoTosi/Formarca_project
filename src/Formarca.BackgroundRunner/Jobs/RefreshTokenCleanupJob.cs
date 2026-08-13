@@ -1,6 +1,7 @@
 using Cronos;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Domain.Common;
+using Formarca.Domain.IdentityAccess;
 using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.BackgroundRunner.Jobs;
@@ -63,10 +64,9 @@ public sealed class RefreshTokenCleanupJob(
 
             var clock = scope.ServiceProvider.GetRequiredService<IClock>();
             var repository = scope.ServiceProvider.GetRequiredService<IGenericRepository>();
-            var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
             var cutoff = clock.UtcNow.AddDays(-7);
 
-            var stale = await db.RefreshTokens
+            var stale = await repository.Query<RefreshToken>()
                 .Where(t =>
                     (t.RevokedAtUtc != null && t.RevokedAtUtc < cutoff)
                     || t.ExpiresAtUtc < cutoff)

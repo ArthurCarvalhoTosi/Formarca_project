@@ -4,7 +4,6 @@ using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Domain.Common;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.IdentityAccess.Auth.Commands;
 
@@ -19,7 +18,7 @@ public sealed class RefreshTokenCommandValidator : AbstractValidator<RefreshToke
 }
 
 public sealed class RefreshTokenCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     IIdentityService identity,
     IJwtTokenService jwt,
     ITenantContext tenantContext) : IRequestHandler<RefreshTokenCommand, AuthResultDto>
@@ -29,8 +28,8 @@ public sealed class RefreshTokenCommandHandler(
         tenantContext.SetIgnoreTenantFilters(true);
 
         var hash = jwt.HashToken(request.RefreshToken);
-        var existing = await db.RefreshTokens
-            .FirstOrDefaultAsync(x => x.TokenHash == hash && !x.IsDeleted, cancellationToken)
+        var existing = await repository.FirstOrDefaultAsync<Domain.IdentityAccess.RefreshToken>(
+            x => x.TokenHash == hash && !x.IsDeleted, cancellationToken)
             ?? throw new UnauthorizedAppException("Invalid refresh token.");
 
         if (!existing.IsActive)
@@ -49,15 +48,15 @@ public sealed class RefreshTokenCommandHandler(
         var newRefresh = jwt.CreateRefreshToken();
         existing.Revoke(newRefresh.TokenHash);
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(db, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
         var tenantId = existing.TenantId;
 
         var permissions = await AuthTokenIssuer.ResolvePermissionsAsync(
-            db, user.Id, tenantId, user.IsPlatformAdmin, cancellationToken);
+            repository, user.Id, tenantId, user.IsPlatformAdmin, cancellationToken);
 
         var accessToken = jwt.CreateAccessToken(user.Id, user.Email, tenantId, user.IsPlatformAdmin, permissions);
-        db.RefreshTokens.Add(RefreshTokenEntity(user.Id, newRefresh.TokenHash, newRefresh.ExpiresAtUtc, tenantId));
-        await db.SaveChangesAsync(cancellationToken);
+        repository.Add(RefreshTokenEntity(user.Id, newRefresh.TokenHash, newRefresh.ExpiresAtUtc, tenantId));
+        await repository.CommitAsync(cancellationToken);
 
         var tokens = new AuthTokensDto(accessToken, newRefresh.RawToken, Clock.Current.UtcNow.AddMinutes(30), tenantId);
 

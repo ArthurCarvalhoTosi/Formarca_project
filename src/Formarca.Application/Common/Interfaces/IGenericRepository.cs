@@ -1,9 +1,20 @@
+using System.Linq.Expressions;
 using Formarca.Domain.Common;
 
 namespace Formarca.Application.Common.Interfaces;
 
 public interface IGenericRepository
 {
+    IQueryable<T> Query<T>(bool asNoTracking = true) where T : Entity;
+
+    Task<T?> FirstOrDefaultAsync<T>(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+        where T : Entity;
+
+    Task<bool> AnyAsync<T>(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+        where T : Entity;
+
+    void Add<T>(T entity) where T : Entity;
+
     Task<T?> GetByIdAsync<T>(Guid id, CancellationToken cancellationToken = default) where T : Entity;
 
     Task InsertAsync<T>(T entity, CancellationToken cancellationToken = default) where T : Entity;

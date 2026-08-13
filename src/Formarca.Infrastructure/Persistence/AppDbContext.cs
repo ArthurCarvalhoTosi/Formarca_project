@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Formarca.Infrastructure.Persistence;
 
-public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>, IApplicationDbContext
+public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
 {
     private static readonly MethodInfo SoftDeleteFilterMethod =
         typeof(AppDbContext).GetMethod(nameof(SetSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Static)!;

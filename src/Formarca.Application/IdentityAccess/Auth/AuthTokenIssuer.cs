@@ -10,7 +10,7 @@ namespace Formarca.Application.IdentityAccess.Auth;
 public static class AuthTokenIssuer
 {
     public static async Task<(AuthTokensDto Tokens, IReadOnlyList<string> Permissions)> IssueAsync(
-        IApplicationDbContext db,
+        IGenericRepository repository,
         IJwtTokenService jwt,
         Guid userId,
         string email,
@@ -18,12 +18,12 @@ public static class AuthTokenIssuer
         Guid? tenantId,
         CancellationToken cancellationToken)
     {
-        var permissions = await ResolvePermissionsAsync(db, userId, tenantId, isPlatformAdmin, cancellationToken);
+        var permissions = await ResolvePermissionsAsync(repository, userId, tenantId, isPlatformAdmin, cancellationToken);
         var accessToken = jwt.CreateAccessToken(userId, email, tenantId, isPlatformAdmin, permissions);
         var refresh = jwt.CreateRefreshToken();
 
-        db.RefreshTokens.Add(RefreshToken.Create(userId, refresh.TokenHash, refresh.ExpiresAtUtc, tenantId));
-        await db.SaveChangesAsync(cancellationToken);
+        repository.Add(RefreshToken.Create(userId, refresh.TokenHash, refresh.ExpiresAtUtc, tenantId));
+        await repository.CommitAsync(cancellationToken);
 
         var tokens = new AuthTokensDto(
             accessToken,
@@ -35,13 +35,13 @@ public static class AuthTokenIssuer
     }
 
     public static async Task<IReadOnlyList<TenantSummaryDto>> GetUserTenantsAsync(
-        IApplicationDbContext db,
+        IGenericRepository repository,
         Guid userId,
         CancellationToken cancellationToken)
     {
         return await (
-            from m in db.UserTenantMemberships.AsNoTracking()
-            join t in db.Tenants.AsNoTracking() on m.TenantId equals t.Id
+            from m in repository.Query<UserTenantMembership>()
+            join t in repository.Query<Tenant>() on m.TenantId equals t.Id
             where m.UserId == userId && m.IsActive && !m.IsDeleted && !t.IsDeleted
             orderby m.IsDefault descending, t.Name
             select new TenantSummaryDto(t.Id, t.Name, t.Slug, m.IsDefault)
@@ -49,7 +49,7 @@ public static class AuthTokenIssuer
     }
 
     public static async Task<IReadOnlyList<string>> ResolvePermissionsAsync(
-        IApplicationDbContext db,
+        IGenericRepository repository,
         Guid userId,
         Guid? tenantId,
         bool isPlatformAdmin,
@@ -65,7 +65,7 @@ public static class AuthTokenIssuer
             return [];
         }
 
-        var groupIds = await db.UserGroupMemberships.AsNoTracking()
+        var groupIds = await repository.Query<UserGroupMembership>()
             .Where(x => x.UserId == userId && x.TenantId == tenantId && !x.IsDeleted)
             .Select(x => x.GroupId)
             .ToListAsync(cancellationToken);
@@ -76,32 +76,32 @@ public static class AuthTokenIssuer
         }
 
         return await (
-            from gp in db.GroupPermissions.AsNoTracking()
-            join p in db.Permissions.AsNoTracking() on gp.PermissionId equals p.Id
+            from gp in repository.Query<GroupPermission>()
+            join p in repository.Query<Permission>() on gp.PermissionId equals p.Id
             where groupIds.Contains(gp.GroupId) && !gp.IsDeleted && !p.IsDeleted
             select p.Code
         ).Distinct().ToListAsync(cancellationToken);
     }
 
     public static async Task EnsureDefaultTenantGroupsAsync(
-        IApplicationDbContext db,
+        IGenericRepository repository,
         Guid tenantId,
         CancellationToken cancellationToken)
     {
-        var existing = await db.Groups
+        var existing = await repository.Query<Group>()
             .Where(g => g.TenantId == tenantId && !g.IsDeleted)
             .Select(g => g.Name)
             .ToListAsync(cancellationToken);
 
-        var permissions = await db.Permissions.AsNoTracking()
+        var permissions = await repository.Query<Permission>()
             .Where(p => !p.IsDeleted)
             .ToDictionaryAsync(p => p.Code, p => p.Id, cancellationToken);
 
         if (!existing.Contains(DefaultGroupNames.TenantAdmins))
         {
             var admins = Group.Create(DefaultGroupNames.TenantAdmins, tenantId, "Tenant administrators");
-            db.Groups.Add(admins);
-            await db.SaveChangesAsync(cancellationToken);
+            repository.Add(admins);
+            await repository.CommitAsync(cancellationToken);
 
             foreach (var code in new[]
                      {
@@ -112,23 +112,23 @@ public static class AuthTokenIssuer
             {
                 if (permissions.TryGetValue(code, out var permissionId))
                 {
-                    db.GroupPermissions.Add(GroupPermission.Create(admins.Id, permissionId));
+                    repository.Add(GroupPermission.Create(admins.Id, permissionId));
                 }
             }
 
-            await db.SaveChangesAsync(cancellationToken);
+            await repository.CommitAsync(cancellationToken);
         }
 
         if (!existing.Contains(DefaultGroupNames.ClientUsers))
         {
             var clients = Group.Create(DefaultGroupNames.ClientUsers, tenantId, "Client users");
-            db.Groups.Add(clients);
-            await db.SaveChangesAsync(cancellationToken);
+            repository.Add(clients);
+            await repository.CommitAsync(cancellationToken);
 
             if (permissions.TryGetValue(PermissionCodes.ProcessesRead, out var permissionId))
             {
-                db.GroupPermissions.Add(GroupPermission.Create(clients.Id, permissionId));
-                await db.SaveChangesAsync(cancellationToken);
+                repository.Add(GroupPermission.Create(clients.Id, permissionId));
+                await repository.CommitAsync(cancellationToken);
             }
         }
     }

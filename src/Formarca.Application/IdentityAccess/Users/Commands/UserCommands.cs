@@ -4,6 +4,7 @@ using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Application.IdentityAccess.Auth;
 using Formarca.Domain.IdentityAccess;
+using Formarca.Domain.Tenancy;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,7 +29,7 @@ public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCom
 
 public sealed class CreateUserCommandHandler(
     IIdentityService identity,
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<CreateUserCommand, UserDto>
 {
     public async Task<UserDto> Handle(CreateUserCommand request, CancellationToken cancellationToken)
@@ -49,17 +50,17 @@ public sealed class CreateUserCommandHandler(
 
         if (request.TenantId is not null)
         {
-            var tenantExists = await db.Tenants.AnyAsync(t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken);
+            var tenantExists = await repository.AnyAsync<Tenant>(t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken);
             if (!tenantExists)
             {
                 throw new NotFoundException("Tenant not found.");
             }
 
-            db.UserTenantMemberships.Add(UserTenantMembership.Create(userId.Value, request.TenantId.Value, isDefault: true));
+            repository.Add(UserTenantMembership.Create(userId.Value, request.TenantId.Value, isDefault: true));
 
             if (request.GroupId is not null)
             {
-                var groupOk = await db.Groups.AnyAsync(
+                var groupOk = await repository.AnyAsync<Group>(
                     g => g.Id == request.GroupId && (g.TenantId == request.TenantId || g.TenantId == null) && !g.IsDeleted,
                     cancellationToken);
                 if (!groupOk)
@@ -67,14 +68,14 @@ public sealed class CreateUserCommandHandler(
                     throw new NotFoundException("Group not found for tenant.");
                 }
 
-                db.UserGroupMemberships.Add(
+                repository.Add(
                     UserGroupMembership.Create(userId.Value, request.TenantId.Value, request.GroupId.Value));
             }
 
-            await db.SaveChangesAsync(cancellationToken);
+            await repository.CommitAsync(cancellationToken);
         }
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(db, userId.Value, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, userId.Value, cancellationToken);
         return new UserDto(userId.Value, request.Email, request.DisplayName, request.IsPlatformAdmin, true, tenants);
     }
 }
@@ -83,7 +84,7 @@ public sealed record AssignUserToTenantCommand(Guid UserId, Guid TenantId, bool 
 
 public sealed class AssignUserToTenantCommandHandler(
     IIdentityService identity,
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<AssignUserToTenantCommand>
 {
     public async Task Handle(AssignUserToTenantCommand request, CancellationToken cancellationToken)
@@ -93,15 +94,15 @@ public sealed class AssignUserToTenantCommandHandler(
         _ = await identity.FindByIdAsync(request.UserId, cancellationToken)
             ?? throw new NotFoundException("User not found.");
 
-        _ = await db.Tenants.FirstOrDefaultAsync(t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken)
+        _ = await repository.FirstOrDefaultAsync<Tenant>(t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
-        var existing = await db.UserTenantMemberships
-            .FirstOrDefaultAsync(m => m.UserId == request.UserId && m.TenantId == request.TenantId && !m.IsDeleted, cancellationToken);
+        var existing = await repository.FirstOrDefaultAsync<UserTenantMembership>(
+            m => m.UserId == request.UserId && m.TenantId == request.TenantId && !m.IsDeleted, cancellationToken);
 
         if (existing is null)
         {
-            db.UserTenantMemberships.Add(UserTenantMembership.Create(request.UserId, request.TenantId, request.IsDefault));
+            repository.Add(UserTenantMembership.Create(request.UserId, request.TenantId, request.IsDefault));
         }
         else
         {
@@ -111,7 +112,7 @@ public sealed class AssignUserToTenantCommandHandler(
 
         if (request.IsDefault)
         {
-            var others = await db.UserTenantMemberships
+            var others = await repository.Query<UserTenantMembership>(asNoTracking: false)
                 .Where(m => m.UserId == request.UserId && m.TenantId != request.TenantId && !m.IsDeleted)
                 .ToListAsync(cancellationToken);
             foreach (var other in others)
@@ -122,36 +123,36 @@ public sealed class AssignUserToTenantCommandHandler(
 
         if (request.GroupId is not null)
         {
-            var already = await db.UserGroupMemberships.AnyAsync(
+            var already = await repository.AnyAsync<UserGroupMembership>(
                 g => g.UserId == request.UserId && g.TenantId == request.TenantId && g.GroupId == request.GroupId && !g.IsDeleted,
                 cancellationToken);
             if (!already)
             {
-                db.UserGroupMemberships.Add(UserGroupMembership.Create(request.UserId, request.TenantId, request.GroupId.Value));
+                repository.Add(UserGroupMembership.Create(request.UserId, request.TenantId, request.GroupId.Value));
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await repository.CommitAsync(cancellationToken);
     }
 }
 
 public sealed record RemoveUserFromTenantCommand(Guid UserId, Guid TenantId) : IRequest;
 
 public sealed class RemoveUserFromTenantCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<RemoveUserFromTenantCommand>
 {
     public async Task Handle(RemoveUserFromTenantCommand request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var membership = await db.UserTenantMemberships
-            .FirstOrDefaultAsync(m => m.UserId == request.UserId && m.TenantId == request.TenantId && !m.IsDeleted, cancellationToken)
+        var membership = await repository.FirstOrDefaultAsync<UserTenantMembership>(
+            m => m.UserId == request.UserId && m.TenantId == request.TenantId && !m.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Membership not found.");
 
         membership.SoftDelete();
 
-        var groups = await db.UserGroupMemberships
+        var groups = await repository.Query<UserGroupMembership>(asNoTracking: false)
             .Where(g => g.UserId == request.UserId && g.TenantId == request.TenantId && !g.IsDeleted)
             .ToListAsync(cancellationToken);
         foreach (var g in groups)
@@ -159,6 +160,6 @@ public sealed class RemoveUserFromTenantCommandHandler(
             g.SoftDelete();
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await repository.CommitAsync(cancellationToken);
     }
 }

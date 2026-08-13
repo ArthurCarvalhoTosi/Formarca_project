@@ -1,8 +1,7 @@
 using FluentValidation;
-using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
+using Formarca.Domain.IdentityAccess;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.IdentityAccess.Auth.Commands;
 
@@ -17,7 +16,7 @@ public sealed class LogoutCommandValidator : AbstractValidator<LogoutCommand>
 }
 
 public sealed class LogoutCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     IJwtTokenService jwt,
     ITenantContext tenantContext) : IRequestHandler<LogoutCommand>
 {
@@ -26,8 +25,8 @@ public sealed class LogoutCommandHandler(
         tenantContext.SetIgnoreTenantFilters(true);
 
         var hash = jwt.HashToken(request.RefreshToken);
-        var existing = await db.RefreshTokens
-            .FirstOrDefaultAsync(x => x.TokenHash == hash && !x.IsDeleted, cancellationToken);
+        var existing = await repository.FirstOrDefaultAsync<RefreshToken>(
+            x => x.TokenHash == hash && !x.IsDeleted, cancellationToken);
 
         if (existing is null)
         {
@@ -37,7 +36,7 @@ public sealed class LogoutCommandHandler(
         if (existing.IsActive)
         {
             existing.Revoke();
-            await db.SaveChangesAsync(cancellationToken);
+            await repository.CommitAsync(cancellationToken);
         }
     }
 }

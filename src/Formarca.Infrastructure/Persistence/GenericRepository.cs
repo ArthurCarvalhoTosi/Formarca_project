@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using EFCore.BulkExtensions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Domain.Common;
@@ -7,6 +8,25 @@ namespace Formarca.Infrastructure.Persistence;
 
 public sealed class GenericRepository(AppDbContext db) : IGenericRepository
 {
+    public IQueryable<T> Query<T>(bool asNoTracking = true)
+        where T : Entity
+    {
+        IQueryable<T> query = db.Set<T>();
+        return asNoTracking ? query.AsNoTracking() : query;
+    }
+
+    public Task<T?> FirstOrDefaultAsync<T>(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+        where T : Entity
+        => db.Set<T>().FirstOrDefaultAsync(predicate, cancellationToken);
+
+    public Task<bool> AnyAsync<T>(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+        where T : Entity
+        => db.Set<T>().AnyAsync(predicate, cancellationToken);
+
+    public void Add<T>(T entity)
+        where T : Entity
+        => db.Set<T>().Add(entity);
+
     public async Task<T?> GetByIdAsync<T>(Guid id, CancellationToken cancellationToken = default)
         where T : Entity
         => await db.Set<T>().FirstOrDefaultAsync(e => e.Id == id, cancellationToken);

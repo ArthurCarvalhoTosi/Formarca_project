@@ -5,7 +5,6 @@ using Formarca.Application.Common.Models;
 using Formarca.Application.IdentityAccess.Auth;
 using Formarca.Domain.Tenancy;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.Tenancy.Commands;
 
@@ -23,7 +22,7 @@ public sealed class CreateTenantCommandValidator : AbstractValidator<CreateTenan
 }
 
 public sealed class CreateTenantCommandHandler(
-    IApplicationDbContext db,
+    IGenericRepository repository,
     ITenantContext tenantContext) : IRequestHandler<CreateTenantCommand, TenantDto>
 {
     public async Task<TenantDto> Handle(CreateTenantCommand request, CancellationToken cancellationToken)
@@ -31,16 +30,16 @@ public sealed class CreateTenantCommandHandler(
         tenantContext.SetIgnoreTenantFilters(true);
 
         var slug = request.Slug.Trim().ToLowerInvariant();
-        if (await db.Tenants.AnyAsync(t => t.Slug == slug && !t.IsDeleted, cancellationToken))
+        if (await repository.AnyAsync<Tenant>(t => t.Slug == slug && !t.IsDeleted, cancellationToken))
         {
             throw new ConflictException($"Tenant slug '{slug}' already exists.");
         }
 
         var tenant = Tenant.Create(request.Name, slug, request.Document);
-        db.Tenants.Add(tenant);
-        await db.SaveChangesAsync(cancellationToken);
+        repository.Add(tenant);
+        await repository.CommitAsync(cancellationToken);
 
-        await AuthTokenIssuer.EnsureDefaultTenantGroupsAsync(db, tenant.Id, cancellationToken);
+        await AuthTokenIssuer.EnsureDefaultTenantGroupsAsync(repository, tenant.Id, cancellationToken);
 
         return new TenantDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Document, tenant.Status.ToString(), tenant.CreatedAtUtc);
     }

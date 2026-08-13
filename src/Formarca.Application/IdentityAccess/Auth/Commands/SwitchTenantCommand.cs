@@ -2,9 +2,9 @@ using FluentValidation;
 using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
+using Formarca.Domain.IdentityAccess;
 using Formarca.Domain.Tenancy;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.IdentityAccess.Auth.Commands;
 
@@ -21,7 +21,7 @@ public sealed class SwitchTenantCommandValidator : AbstractValidator<SwitchTenan
 public sealed class SwitchTenantCommandHandler(
     ICurrentUser currentUser,
     IIdentityService identity,
-    IApplicationDbContext db,
+    IGenericRepository repository,
     IJwtTokenService jwt,
     ITenantContext tenantContext) : IRequestHandler<SwitchTenantCommand, AuthResultDto>
 {
@@ -37,8 +37,8 @@ public sealed class SwitchTenantCommandHandler(
         var user = await identity.FindByIdAsync(currentUser.UserId.Value, cancellationToken)
             ?? throw new UnauthorizedAppException("User not found.");
 
-        var tenant = await db.Tenants.AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken)
+        var tenant = await repository.FirstOrDefaultAsync<Tenant>(
+            t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
         if (tenant.Status != TenantStatus.Active && !user.IsPlatformAdmin)
@@ -48,10 +48,9 @@ public sealed class SwitchTenantCommandHandler(
 
         if (!user.IsPlatformAdmin)
         {
-            var membership = await db.UserTenantMemberships.AsNoTracking()
-                .AnyAsync(
-                    m => m.UserId == user.Id && m.TenantId == request.TenantId && m.IsActive && !m.IsDeleted,
-                    cancellationToken);
+            var membership = await repository.AnyAsync<UserTenantMembership>(
+                m => m.UserId == user.Id && m.TenantId == request.TenantId && m.IsActive && !m.IsDeleted,
+                cancellationToken);
 
             if (!membership)
             {
@@ -59,14 +58,14 @@ public sealed class SwitchTenantCommandHandler(
             }
         }
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(db, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
         if (user.IsPlatformAdmin && tenants.All(t => t.Id != tenant.Id))
         {
             tenants = tenants.Append(new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, false)).ToList();
         }
 
         var (tokens, permissions) = await AuthTokenIssuer.IssueAsync(
-            db, jwt, user.Id, user.Email, user.IsPlatformAdmin, request.TenantId, cancellationToken);
+            repository, jwt, user.Id, user.Email, user.IsPlatformAdmin, request.TenantId, cancellationToken);
 
         return new AuthResultDto(
             tokens,
