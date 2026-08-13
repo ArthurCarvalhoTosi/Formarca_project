@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Formarca.Application.Common.Interfaces;
+using Formarca.Domain.Common;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Infrastructure.Auth;
 using Microsoft.Extensions.Options;
@@ -25,7 +26,7 @@ public sealed class JwtOptions
     public int RefreshTokenDays { get; set; } = 14;
 }
 
-public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
+public sealed class JwtTokenService(IOptions<JwtOptions> options, IClock clock) : IJwtTokenService
 {
     private readonly JwtOptions _options = options.Value;
 
@@ -62,7 +63,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Key));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var expires = DateTime.UtcNow.AddMinutes(_options.AccessTokenMinutes);
+        var expires = clock.UtcNow.AddMinutes(_options.AccessTokenMinutes);
 
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,
@@ -78,7 +79,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
     {
         var bytes = RandomNumberGenerator.GetBytes(64);
         var raw = Convert.ToBase64String(bytes);
-        return (raw, HashToken(raw), DateTime.UtcNow.AddDays(_options.RefreshTokenDays));
+        return (raw, HashToken(raw), clock.UtcNow.AddDays(_options.RefreshTokenDays));
     }
 
     public string HashToken(string rawToken)

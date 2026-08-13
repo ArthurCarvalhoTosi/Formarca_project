@@ -20,7 +20,7 @@ public class RefreshToken : Entity
 
     public Guid? TenantId { get; private set; }
 
-    public bool IsActive => RevokedAtUtc is null && ExpiresAtUtc > DateTime.UtcNow;
+    public bool IsActive => RevokedAtUtc is null && ExpiresAtUtc > Clock.Current.UtcNow;
 
     public static RefreshToken Create(Guid userId, string tokenHash, DateTime expiresAtUtc, Guid? tenantId)
     {
@@ -37,7 +37,7 @@ public class RefreshToken : Entity
 
     public void Revoke(string? replacedByTokenHash = null)
     {
-        RevokedAtUtc = DateTime.UtcNow;
+        RevokedAtUtc = Clock.Current.UtcNow;
         ReplacedByTokenHash = replacedByTokenHash;
         MarkUpdated();
     }

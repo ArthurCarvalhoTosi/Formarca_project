@@ -6,21 +6,28 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.Tenancy.Queries;
 
-public sealed record ListTenantsQuery : IRequest<IReadOnlyList<TenantDto>>;
+public sealed record ListTenantsQuery(int Page = 1, int PageSize = Paging.DefaultPageSize)
+    : IRequest<PagedResult<TenantDto>>;
 
 public sealed class ListTenantsQueryHandler(
     IApplicationDbContext db,
-    ITenantContext tenantContext) : IRequestHandler<ListTenantsQuery, IReadOnlyList<TenantDto>>
+    ITenantContext tenantContext) : IRequestHandler<ListTenantsQuery, PagedResult<TenantDto>>
 {
-    public async Task<IReadOnlyList<TenantDto>> Handle(ListTenantsQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<TenantDto>> Handle(ListTenantsQuery request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        return await db.Tenants.AsNoTracking()
-            .Where(t => !t.IsDeleted)
-            .OrderBy(t => t.Name)
+        var (page, pageSize, skip) = Paging.Normalize(request.Page, request.PageSize);
+
+        var query = db.Tenants.AsNoTracking().OrderBy(t => t.Name);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip(skip)
+            .Take(pageSize)
             .Select(t => new TenantDto(t.Id, t.Name, t.Slug, t.Document, t.Status.ToString(), t.CreatedAtUtc))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<TenantDto>(items, total, page, pageSize);
     }
 }
 
@@ -35,7 +42,7 @@ public sealed class GetTenantByIdQueryHandler(
         tenantContext.SetIgnoreTenantFilters(true);
 
         var tenant = await db.Tenants.AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == request.Id && !t.IsDeleted, cancellationToken)
+            .FirstOrDefaultAsync(t => t.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
         return new TenantDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Document, tenant.Status.ToString(), tenant.CreatedAtUtc);

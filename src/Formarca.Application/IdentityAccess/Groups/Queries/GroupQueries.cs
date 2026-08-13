@@ -7,28 +7,33 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.IdentityAccess.Groups.Queries;
 
-public sealed record ListGroupsQuery(Guid? TenantId) : IRequest<IReadOnlyList<GroupDto>>;
+public sealed record ListGroupsQuery(Guid? TenantId, int Page = 1, int PageSize = Paging.DefaultPageSize)
+    : IRequest<PagedResult<GroupDto>>;
 
 public sealed class ListGroupsQueryHandler(
     IApplicationDbContext db,
-    ITenantContext tenantContext) : IRequestHandler<ListGroupsQuery, IReadOnlyList<GroupDto>>
+    ITenantContext tenantContext) : IRequestHandler<ListGroupsQuery, PagedResult<GroupDto>>
 {
-    public async Task<IReadOnlyList<GroupDto>> Handle(ListGroupsQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<GroupDto>> Handle(ListGroupsQuery request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var groups = await db.Groups.AsNoTracking()
-            .Where(g => !g.IsDeleted && (request.TenantId == null || g.TenantId == request.TenantId || g.TenantId == null))
-            .OrderBy(g => g.Name)
-            .ToListAsync(cancellationToken);
+        var (page, pageSize, skip) = Paging.Normalize(request.Page, request.PageSize);
 
-        var result = new List<GroupDto>();
+        var query = db.Groups.AsNoTracking()
+            .Where(g => request.TenantId == null || g.TenantId == request.TenantId || g.TenantId == null)
+            .OrderBy(g => g.Name);
+
+        var total = await query.CountAsync(cancellationToken);
+        var groups = await query.Skip(skip).Take(pageSize).ToListAsync(cancellationToken);
+
+        var items = new List<GroupDto>(groups.Count);
         foreach (var group in groups)
         {
-            result.Add(await CreateGroupCommandHandler.MapGroupAsync(db, group.Id, cancellationToken));
+            items.Add(await CreateGroupCommandHandler.MapGroupAsync(db, group.Id, cancellationToken));
         }
 
-        return result;
+        return new PagedResult<GroupDto>(items, total, page, pageSize);
     }
 }
 
@@ -42,7 +47,7 @@ public sealed class GetGroupByIdQueryHandler(
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var exists = await db.Groups.AsNoTracking().AnyAsync(g => g.Id == request.Id && !g.IsDeleted, cancellationToken);
+        var exists = await db.Groups.AsNoTracking().AnyAsync(g => g.Id == request.Id, cancellationToken);
         if (!exists)
         {
             throw new NotFoundException("Group not found.");
@@ -63,7 +68,6 @@ public sealed class ListPermissionsQueryHandler(
         tenantContext.SetIgnoreTenantFilters(true);
 
         return await db.Permissions.AsNoTracking()
-            .Where(p => !p.IsDeleted)
             .OrderBy(p => p.Code)
             .Select(p => new PermissionDto(p.Id, p.Code, p.Name))
             .ToListAsync(cancellationToken);

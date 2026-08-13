@@ -1,5 +1,6 @@
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
+using Formarca.Domain.Common;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Domain.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,7 @@ public static class AuthTokenIssuer
         var tokens = new AuthTokensDto(
             accessToken,
             refresh.RawToken,
-            DateTime.UtcNow.AddMinutes(30),
+            Clock.Current.UtcNow.AddMinutes(30),
             tenantId);
 
         return (tokens, permissions);

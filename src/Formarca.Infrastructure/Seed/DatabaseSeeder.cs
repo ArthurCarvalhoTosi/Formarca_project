@@ -1,3 +1,4 @@
+using Formarca.Domain.Common;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Infrastructure.Identity;
 using Formarca.Infrastructure.Persistence;
@@ -65,7 +66,7 @@ public static class DatabaseSeeder
             DisplayName = "Formarca Platform Admin",
             IsPlatformAdmin = true,
             IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = Clock.Current.UtcNow
         };
 
         var result = await userManager.CreateAsync(admin, PlatformAdminPassword);

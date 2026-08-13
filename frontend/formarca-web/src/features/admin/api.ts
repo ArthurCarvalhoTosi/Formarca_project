@@ -30,21 +30,21 @@ function mapUser(user: BackendUser): UserListItem {
 export const adminApi = {
   async listTenants(): Promise<Tenant[]> {
     const data = await apiRequest<Tenant[] | PagedResult<Tenant>>(
-      '/api/admin/tenants',
+      `/api/admin/tenants?page=1&pageSize=100`,
     )
     return asList(data)
   },
 
   async listUsers(): Promise<UserListItem[]> {
     const data = await apiRequest<BackendUser[] | PagedResult<BackendUser>>(
-      '/api/admin/users',
+      `/api/admin/users?page=1&pageSize=100`,
     )
     return asList(data).map(mapUser)
   },
 
   async listGroups(): Promise<Group[]> {
     const data = await apiRequest<Group[] | PagedResult<Group>>(
-      '/api/admin/groups',
+      '/api/admin/groups?page=1&pageSize=100',
     )
     return asList(data)
   },

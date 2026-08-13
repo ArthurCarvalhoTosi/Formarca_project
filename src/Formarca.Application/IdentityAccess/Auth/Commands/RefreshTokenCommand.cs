@@ -2,6 +2,7 @@ using FluentValidation;
 using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
+using Formarca.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -58,7 +59,7 @@ public sealed class RefreshTokenCommandHandler(
         db.RefreshTokens.Add(RefreshTokenEntity(user.Id, newRefresh.TokenHash, newRefresh.ExpiresAtUtc, tenantId));
         await db.SaveChangesAsync(cancellationToken);
 
-        var tokens = new AuthTokensDto(accessToken, newRefresh.RawToken, DateTime.UtcNow.AddMinutes(30), tenantId);
+        var tokens = new AuthTokensDto(accessToken, newRefresh.RawToken, Clock.Current.UtcNow.AddMinutes(30), tenantId);
 
         return new AuthResultDto(tokens, user.Id, user.Email, user.DisplayName, user.IsPlatformAdmin, tenants, permissions);
     }

@@ -6,7 +6,7 @@ public abstract class Entity
 
     public Guid Id { get; protected set; } = Guid.NewGuid();
 
-    public DateTime CreatedAtUtc { get; protected set; } = DateTime.UtcNow;
+    public DateTime CreatedAtUtc { get; protected set; } = Clock.Current.UtcNow;
 
     public DateTime? UpdatedAtUtc { get; protected set; }
 
@@ -20,7 +20,7 @@ public abstract class Entity
 
     public void ClearDomainEvents() => _domainEvents.Clear();
 
-    public void MarkUpdated() => UpdatedAtUtc = DateTime.UtcNow;
+    public void MarkUpdated() => UpdatedAtUtc = Clock.Current.UtcNow;
 
     public void SoftDelete()
     {
@@ -30,7 +30,7 @@ public abstract class Entity
         }
 
         IsDeleted = true;
-        DeletedAtUtc = DateTime.UtcNow;
+        DeletedAtUtc = Clock.Current.UtcNow;
         MarkUpdated();
     }
 }

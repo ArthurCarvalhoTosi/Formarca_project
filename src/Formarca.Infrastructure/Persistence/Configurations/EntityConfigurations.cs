@@ -1,3 +1,4 @@
+using Formarca.Domain.Auditing;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Domain.PlatformContent;
 using Formarca.Domain.Tenancy;
@@ -112,6 +113,21 @@ public sealed class PlatformNoticeConfiguration : IEntityTypeConfiguration<Platf
         builder.Property(x => x.Title).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Body).HasMaxLength(4000).IsRequired();
         builder.Ignore(x => x.DomainEvents);
+    }
+}
+
+public sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
+{
+    public void Configure(EntityTypeBuilder<AuditLog> builder)
+    {
+        builder.ToTable("AuditLogs");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Action).HasMaxLength(32).IsRequired();
+        builder.Property(x => x.EntityName).HasMaxLength(128).IsRequired();
+        builder.HasIndex(x => x.OccurredAtUtc);
+        builder.HasIndex(x => new { x.EntityName, x.EntityId });
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.UserId);
     }
 }
 

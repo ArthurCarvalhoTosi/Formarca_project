@@ -3,22 +3,23 @@ using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Application.IdentityAccess.Auth;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.IdentityAccess.Users.Queries;
 
-public sealed record ListUsersQuery : IRequest<IReadOnlyList<UserDto>>;
+public sealed record ListUsersQuery(int Page = 1, int PageSize = Paging.DefaultPageSize)
+    : IRequest<PagedResult<UserDto>>;
 
 public sealed class ListUsersQueryHandler(
     IIdentityService identity,
     IApplicationDbContext db,
-    ITenantContext tenantContext) : IRequestHandler<ListUsersQuery, IReadOnlyList<UserDto>>
+    ITenantContext tenantContext) : IRequestHandler<ListUsersQuery, PagedResult<UserDto>>
 {
-    public async Task<IReadOnlyList<UserDto>> Handle(ListUsersQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<UserDto>> Handle(ListUsersQuery request, CancellationToken cancellationToken)
     {
         tenantContext.SetIgnoreTenantFilters(true);
 
-        var users = await identity.ListUsersAsync(cancellationToken);
+        var (page, pageSize, skip) = Paging.Normalize(request.Page, request.PageSize);
+        var (users, total) = await identity.ListUsersAsync(skip, pageSize, cancellationToken);
         var result = new List<UserDto>(users.Count);
 
         foreach (var user in users)
@@ -27,7 +28,7 @@ public sealed class ListUsersQueryHandler(
             result.Add(new UserDto(user.Id, user.Email, user.DisplayName, user.IsPlatformAdmin, user.IsActive, tenants));
         }
 
-        return result;
+        return new PagedResult<UserDto>(result, total, page, pageSize);
     }
 }
 

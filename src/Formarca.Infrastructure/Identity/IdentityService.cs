@@ -1,11 +1,12 @@
 using Formarca.Application.Common.Interfaces;
+using Formarca.Domain.Common;
 using Formarca.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Infrastructure.Identity;
 
-public sealed class IdentityService(UserManager<ApplicationUser> userManager) : IIdentityService
+public sealed class IdentityService(UserManager<ApplicationUser> userManager, IClock clock) : IIdentityService
 {
     public async Task<IdentityUserInfo?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
@@ -41,7 +42,7 @@ public sealed class IdentityService(UserManager<ApplicationUser> userManager) : 
             DisplayName = displayName,
             IsPlatformAdmin = isPlatformAdmin,
             IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = clock.UtcNow
         };
 
         var result = await userManager.CreateAsync(user, password);
@@ -81,10 +82,15 @@ public sealed class IdentityService(UserManager<ApplicationUser> userManager) : 
             : (false, result.Errors.Select(e => e.Description).ToList());
     }
 
-    public async Task<IReadOnlyList<IdentityUserInfo>> ListUsersAsync(CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<IdentityUserInfo> Items, int TotalCount)> ListUsersAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
     {
-        var users = await userManager.Users.AsNoTracking().OrderBy(u => u.Email).ToListAsync(cancellationToken);
-        return users.Select(Map).ToList();
+        var query = userManager.Users.AsNoTracking().OrderBy(u => u.Email);
+        var total = await query.CountAsync(cancellationToken);
+        var users = await query.Skip(skip).Take(take).ToListAsync(cancellationToken);
+        return (users.Select(Map).ToList(), total);
     }
 
     private static IdentityUserInfo Map(ApplicationUser user) =>

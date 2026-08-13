@@ -1,4 +1,7 @@
+using System.Reflection;
+using System.Text.Json;
 using Formarca.Application.Common.Interfaces;
+using Formarca.Domain.Auditing;
 using Formarca.Domain.Common;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Domain.PlatformContent;
@@ -6,14 +9,39 @@ using Formarca.Domain.Tenancy;
 using Formarca.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Formarca.Infrastructure.Persistence;
 
-public class AppDbContext(
-    DbContextOptions<AppDbContext> options,
-    ITenantContext tenantContext)
-    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options), IApplicationDbContext
+public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>, IApplicationDbContext
 {
+    private static readonly MethodInfo SoftDeleteFilterMethod =
+        typeof(AppDbContext).GetMethod(nameof(SetSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly MethodInfo TenantAndSoftDeleteFilterMethod =
+        typeof(AppDbContext).GetMethod(nameof(SetTenantAndSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    private readonly ITenantContext _tenantContext;
+    private readonly IClock _clock;
+    private readonly ICurrentUser? _currentUser;
+
+    public AppDbContext(
+        DbContextOptions<AppDbContext> options,
+        ITenantContext tenantContext,
+        IClock clock,
+        ICurrentUser? currentUser = null)
+        : base(options)
+    {
+        _tenantContext = tenantContext;
+        _clock = clock;
+        _currentUser = currentUser;
+    }
+
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
     public DbSet<Permission> Permissions => Set<Permission>();
@@ -30,27 +58,29 @@ public class AppDbContext(
 
     public DbSet<PlatformNotice> PlatformNotices => Set<PlatformNotice>();
 
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
-        // Keep default AspNet* table names from Identity.
         builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
-
-        builder.Entity<UserTenantMembership>()
-            .HasQueryFilter(e =>
-                !e.IsDeleted &&
-                (tenantContext.IgnoreTenantFilters
-                 || (tenantContext.TenantId != null && e.TenantId == tenantContext.TenantId.Value)));
-
-        builder.Entity<UserGroupMembership>()
-            .HasQueryFilter(e =>
-                !e.IsDeleted &&
-                (tenantContext.IgnoreTenantFilters
-                 || (tenantContext.TenantId != null && e.TenantId == tenantContext.TenantId.Value)));
+        ApplyQueryFilters(builder);
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        PrepareSave();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        PrepareSave();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void PrepareSave()
     {
         foreach (var entry in ChangeTracker.Entries<Entity>())
         {
@@ -60,6 +90,115 @@ public class AppDbContext(
             }
         }
 
-        return base.SaveChangesAsync(cancellationToken);
+        var auditLogs = BuildAuditLogs();
+        if (auditLogs.Count > 0)
+        {
+            AuditLogs.AddRange(auditLogs);
+        }
+    }
+
+    private void ApplyQueryFilters(ModelBuilder builder)
+    {
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            var clr = entityType.ClrType;
+            if (clr.IsAbstract || !typeof(Entity).IsAssignableFrom(clr))
+            {
+                continue;
+            }
+
+            if (typeof(ITenantScoped).IsAssignableFrom(clr))
+            {
+                TenantAndSoftDeleteFilterMethod.MakeGenericMethod(clr)
+                    .Invoke(null, [builder, _tenantContext]);
+            }
+            else
+            {
+                SoftDeleteFilterMethod.MakeGenericMethod(clr)
+                    .Invoke(null, [builder, _tenantContext]);
+            }
+        }
+    }
+
+    private static void SetSoftDeleteFilter<TEntity>(ModelBuilder builder, ITenantContext tenantContext)
+        where TEntity : Entity
+    {
+        builder.Entity<TEntity>().HasQueryFilter(e =>
+            tenantContext.IgnoreSoftDeleteFilters || !e.IsDeleted);
+    }
+
+    private static void SetTenantAndSoftDeleteFilter<TEntity>(ModelBuilder builder, ITenantContext tenantContext)
+        where TEntity : Entity, ITenantScoped
+    {
+        builder.Entity<TEntity>().HasQueryFilter(e =>
+            (tenantContext.IgnoreSoftDeleteFilters || !e.IsDeleted) &&
+            (tenantContext.IgnoreTenantFilters || e.TenantId == tenantContext.TenantId));
+    }
+
+    private List<AuditLog> BuildAuditLogs()
+    {
+        var logs = new List<AuditLog>();
+        var now = _clock.UtcNow;
+        var userId = _currentUser?.UserId;
+        var tenantId = _currentUser?.TenantId ?? _tenantContext.TenantId;
+
+        foreach (var entry in ChangeTracker.Entries<Entity>())
+        {
+            if (entry.State is EntityState.Detached or EntityState.Unchanged)
+            {
+                continue;
+            }
+
+            var action = entry.State switch
+            {
+                EntityState.Added => "Added",
+                EntityState.Deleted => "Deleted",
+                EntityState.Modified when entry.Entity.IsDeleted => "Deleted",
+                _ => "Modified"
+            };
+
+            logs.Add(new AuditLog
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Action = action,
+                EntityName = entry.Metadata.ClrType.Name,
+                EntityId = entry.Entity.Id,
+                OccurredAtUtc = now,
+                JsonChanges = SerializeChanges(entry)
+            });
+        }
+
+        return logs;
+    }
+
+    private static string? SerializeChanges(EntityEntry<Entity> entry)
+    {
+        var changes = new Dictionary<string, object?>();
+
+        foreach (var property in entry.Properties)
+        {
+            if (property.Metadata.Name is nameof(Entity.DomainEvents))
+            {
+                continue;
+            }
+
+            var include = entry.State == EntityState.Added
+                || entry.State == EntityState.Deleted
+                || property.IsModified;
+
+            if (!include)
+            {
+                continue;
+            }
+
+            changes[property.Metadata.Name] = new
+            {
+                old = entry.State == EntityState.Added ? null : property.OriginalValue,
+                @new = entry.State == EntityState.Deleted ? null : property.CurrentValue
+            };
+        }
+
+        return changes.Count == 0 ? null : JsonSerializer.Serialize(changes, JsonOptions);
     }
 }

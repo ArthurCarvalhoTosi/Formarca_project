@@ -1,3 +1,4 @@
+using Formarca.Application.Common.Models;
 using Formarca.Application.Tenancy.Commands;
 using Formarca.Application.Tenancy.Queries;
 using Formarca.Domain.IdentityAccess;
@@ -18,8 +19,11 @@ public sealed class TenantsController(ISender sender) : ControllerBase
     public sealed record UpdateTenantRequest(string Name, string? Document, TenantStatus Status);
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken cancellationToken)
-        => Ok(await sender.Send(new ListTenantsQuery(), cancellationToken));
+    public async Task<IActionResult> List(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = Paging.DefaultPageSize,
+        CancellationToken cancellationToken = default)
+        => Ok(await sender.Send(new ListTenantsQuery(page, pageSize), cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)

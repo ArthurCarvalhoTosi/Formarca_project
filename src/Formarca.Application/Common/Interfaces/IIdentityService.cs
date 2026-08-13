@@ -29,5 +29,8 @@ public interface IIdentityService
         bool? isActive,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<IdentityUserInfo>> ListUsersAsync(CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<IdentityUserInfo> Items, int TotalCount)> ListUsersAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
 }

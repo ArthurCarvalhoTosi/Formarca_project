@@ -1,3 +1,4 @@
+using Formarca.Application.Common.Models;
 using Formarca.Application.IdentityAccess.Users.Commands;
 using Formarca.Application.IdentityAccess.Users.Queries;
 using Formarca.Web.Authorization;
@@ -23,8 +24,11 @@ public sealed class UsersController(ISender sender) : ControllerBase
     public sealed record AssignTenantRequest(Guid TenantId, bool IsDefault, Guid? GroupId);
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken cancellationToken)
-        => Ok(await sender.Send(new ListUsersQuery(), cancellationToken));
+    public async Task<IActionResult> List(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = Paging.DefaultPageSize,
+        CancellationToken cancellationToken = default)
+        => Ok(await sender.Send(new ListUsersQuery(page, pageSize), cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)

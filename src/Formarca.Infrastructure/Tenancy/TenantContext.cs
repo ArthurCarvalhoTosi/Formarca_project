@@ -10,6 +10,8 @@ public sealed class TenantContext : ITenantContext
 
     public bool IgnoreTenantFilters { get; private set; }
 
+    public bool IgnoreSoftDeleteFilters { get; private set; }
+
     public void SetTenant(Guid? tenantId, bool isPlatformAdmin = false)
     {
         TenantId = tenantId;
@@ -17,4 +19,6 @@ public sealed class TenantContext : ITenantContext
     }
 
     public void SetIgnoreTenantFilters(bool ignore) => IgnoreTenantFilters = ignore;
+
+    public void SetIgnoreSoftDeleteFilters(bool ignore) => IgnoreSoftDeleteFilters = ignore;
 }

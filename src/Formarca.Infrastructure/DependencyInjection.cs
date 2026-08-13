@@ -1,5 +1,6 @@
 using System.Text;
 using Formarca.Application.Common.Interfaces;
+using Formarca.Domain.Common;
 using Formarca.Infrastructure.Auth;
 using Formarca.Infrastructure.Identity;
 using Formarca.Infrastructure.Persistence;
@@ -64,9 +65,11 @@ public static class DependencyInjection
 
         services.AddAuthorization();
         services.AddHttpContextAccessor();
+        services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IGenericRepository, GenericRepository>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
         return services;

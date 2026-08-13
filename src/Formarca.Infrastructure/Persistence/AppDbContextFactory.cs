@@ -1,4 +1,5 @@
 using Formarca.Application.Common.Interfaces;
+using Formarca.Domain.Common;
 using Formarca.Infrastructure.Persistence;
 using Formarca.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,8 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
 
         ITenantContext tenantContext = new TenantContext();
         tenantContext.SetIgnoreTenantFilters(true);
+        tenantContext.SetIgnoreSoftDeleteFilters(true);
 
-        return new AppDbContext(options, tenantContext);
+        return new AppDbContext(options, tenantContext, new SystemClock());
     }
 }

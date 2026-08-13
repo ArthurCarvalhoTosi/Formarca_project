@@ -8,7 +8,11 @@ public interface ITenantContext
 
     bool IgnoreTenantFilters { get; }
 
+    bool IgnoreSoftDeleteFilters { get; }
+
     void SetTenant(Guid? tenantId, bool isPlatformAdmin = false);
 
     void SetIgnoreTenantFilters(bool ignore);
+
+    void SetIgnoreSoftDeleteFilters(bool ignore);
 }

@@ -1,3 +1,4 @@
+using Formarca.Application.Common.Models;
 using Formarca.Application.IdentityAccess.Groups.Commands;
 using Formarca.Application.IdentityAccess.Groups.Queries;
 using Formarca.Web.Authorization;
@@ -17,8 +18,12 @@ public sealed class GroupsController(ISender sender) : ControllerBase
     public sealed record AssignUserRequest(Guid UserId, Guid TenantId);
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] Guid? tenantId, CancellationToken cancellationToken)
-        => Ok(await sender.Send(new ListGroupsQuery(tenantId), cancellationToken));
+    public async Task<IActionResult> List(
+        [FromQuery] Guid? tenantId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = Paging.DefaultPageSize,
+        CancellationToken cancellationToken = default)
+        => Ok(await sender.Send(new ListGroupsQuery(tenantId, page, pageSize), cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)
