@@ -48,6 +48,7 @@ try
     using (var scope = host.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await WaitForDatabaseAsync(db);
         await db.Database.MigrateAsync();
     }
 
@@ -72,5 +73,36 @@ finally
     else
     {
         host?.Dispose();
+    }
+}
+
+static async Task WaitForDatabaseAsync(AppDbContext db)
+{
+    const int maxAttempts = 10;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            if (await db.Database.CanConnectAsync())
+            {
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(
+                "SQL Server is not ready (attempt {Attempt}/{MaxAttempts}): {Message}",
+                attempt,
+                maxAttempts,
+                ex.Message);
+        }
+
+        if (attempt == maxAttempts)
+        {
+            throw new InvalidOperationException(
+                "Could not connect to SQL Server. Start it with `docker compose up -d` and wait until the container is healthy, then retry.");
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(3));
     }
 }

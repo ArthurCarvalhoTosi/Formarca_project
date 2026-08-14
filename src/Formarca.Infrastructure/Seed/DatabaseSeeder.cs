@@ -104,6 +104,7 @@ public static class DatabaseSeeder
         }
 
         var membershipExists = await db.UserTenantMemberships
+            .IgnoreQueryFilters()
             .AnyAsync(m => m.UserId == admin.Id && m.TenantId == tenant.Id && !m.IsDeleted, cancellationToken);
 
         if (!membershipExists)
@@ -118,9 +119,11 @@ public static class DatabaseSeeder
 
         if (adminGroup is not null)
         {
-            var inGroup = await db.UserGroupMemberships.AnyAsync(
-                g => g.UserId == admin.Id && g.GroupId == adminGroup.Id && !g.IsDeleted,
-                cancellationToken);
+            var inGroup = await db.UserGroupMemberships
+                .IgnoreQueryFilters()
+                .AnyAsync(
+                    g => g.UserId == admin.Id && g.GroupId == adminGroup.Id && !g.IsDeleted,
+                    cancellationToken);
 
             if (!inGroup)
             {
