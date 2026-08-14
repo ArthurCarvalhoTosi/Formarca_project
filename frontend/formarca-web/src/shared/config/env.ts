@@ -3,4 +3,6 @@ export const env = {
     /\/$/,
     '',
   ),
+  /** Login local sem API. Desligue com VITE_MOCK_AUTH=false. */
+  mockAuth: import.meta.env.VITE_MOCK_AUTH !== 'false',
 } as const

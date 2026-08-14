@@ -4,6 +4,8 @@ import { Alert, Button, Card, Form, Input, Typography } from 'antd'
 import { Lock, Mail } from 'lucide-react'
 import { ApiError } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { MOCK_CREDENTIALS } from '@/shared/auth/mockAuth'
+import { env } from '@/shared/config/env'
 
 type LoginFormValues = {
   email: string
@@ -34,6 +36,8 @@ export function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || 'Falha no login')
+      } else if (env.mockAuth) {
+        setError('Não foi possível entrar. Tente novamente.')
       } else {
         setError('Não foi possível conectar à API. Verifique VITE_API_URL.')
       }
@@ -54,6 +58,22 @@ export function LoginPage() {
           </Typography.Text>
         </div>
 
+        {env.mockAuth ? (
+          <Alert
+            type="info"
+            showIcon
+            message="Login mockado (sem API)"
+            description={
+              <>
+                Use <Typography.Text code>{MOCK_CREDENTIALS.email}</Typography.Text>{' '}
+                / <Typography.Text code>{MOCK_CREDENTIALS.password}</Typography.Text>{' '}
+                para entrar no front.
+              </>
+            }
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
+
         {error ? (
           <Alert
             type="error"
@@ -67,7 +87,14 @@ export function LoginPage() {
           layout="vertical"
           requiredMark={false}
           onFinish={onFinish}
-          initialValues={{ email: '', password: '' }}
+          initialValues={
+            env.mockAuth
+              ? {
+                  email: MOCK_CREDENTIALS.email,
+                  password: MOCK_CREDENTIALS.password,
+                }
+              : { email: '', password: '' }
+          }
         >
           <Form.Item
             label="E-mail"

@@ -9,6 +9,13 @@ import {
 } from 'react'
 import { authApi } from '@/features/auth/api'
 import { setUnauthorizedHandler } from '@/shared/api/client'
+import { env } from '@/shared/config/env'
+import {
+  isMockAccessToken,
+  MOCK_TENANTS,
+  MOCK_USER,
+  mockLogin,
+} from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
 import type {
   AuthUser,
@@ -91,6 +98,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return
     }
 
+    if (env.mockAuth && isMockAccessToken(accessToken)) {
+      applySession({
+        user: MOCK_USER,
+        tenants: MOCK_TENANTS,
+        activeTenantId: tokenStorage.getActiveTenantId(),
+      })
+      return
+    }
+
+    if (env.mockAuth) {
+      clearSession()
+      return
+    }
+
     try {
       const me = await authApi.me()
       applySession({
@@ -116,7 +137,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = useCallback(
     async (payload: LoginRequest) => {
-      const result = await authApi.login(payload)
+      const result = env.mockAuth
+        ? mockLogin(payload)
+        : await authApi.login(payload)
       applySession({
         user: result.user,
         tenants: result.tenants ?? [],
@@ -129,18 +152,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   )
 
   const logout = useCallback(async () => {
-    const refreshToken = tokenStorage.getRefreshToken()
-    try {
-      await authApi.logout(refreshToken)
-    } catch {
-      // Local logout still proceeds if API is unreachable.
-    } finally {
-      clearSession()
+    if (!env.mockAuth) {
+      const refreshToken = tokenStorage.getRefreshToken()
+      try {
+        await authApi.logout(refreshToken)
+      } catch {
+        // Local logout still proceeds if API is unreachable.
+      }
     }
+    clearSession()
   }, [clearSession])
 
   const switchTenant = useCallback(
     async (tenantId: string) => {
+      if (env.mockAuth) {
+        applySession({
+          user: user ?? MOCK_USER,
+          tenants,
+          activeTenantId: tenantId,
+        })
+        return
+      }
+
       const result = await authApi.switchTenant({ tenantId })
       applySession({
         user: result.user,
@@ -150,7 +183,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         refreshToken: result.refreshToken,
       })
     },
-    [applySession, tenants],
+    [applySession, tenants, user],
   )
 
   const value = useMemo<AuthContextValue>(

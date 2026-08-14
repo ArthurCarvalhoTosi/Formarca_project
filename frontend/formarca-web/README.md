@@ -18,6 +18,13 @@ Abre em `http://localhost:5173`.
 | Variável | Descrição | Exemplo |
 |---|---|---|
 | `VITE_API_URL` | URL base da API (sem barra final; deve bater com `Formarca.Web` em `http://localhost:5000`) | `http://localhost:5000` |
+| `VITE_MOCK_AUTH` | Login mockado no front, sem API. Padrão ligado; use `false` para autenticar na API | `true` |
+
+Login mock (quando `VITE_MOCK_AUTH` não é `false`):
+
+| User | Password | Role |
+|------|----------|------|
+| `admin@formarca.com` | `admin` | PlatformAdmin |
 
 ## Scripts
 

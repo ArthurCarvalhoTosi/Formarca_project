@@ -104,8 +104,17 @@ npm run dev
 | Variable | Default | Notes |
 |----------|---------|--------|
 | `VITE_API_URL` | `http://localhost:5000` | API base URL, no trailing slash |
+| `VITE_MOCK_AUTH` | `true` | Login local sem API; `false` usa `/api/auth` |
 
 Dev server: **http://localhost:5173**. The API allows CORS from that origin in Development.
+
+Login mockado (sem API, padrão ligado):
+
+| User | Password | Role |
+|------|----------|------|
+| `admin@formarca.com` | `admin` | PlatformAdmin |
+
+Para autenticar na API real, defina `VITE_MOCK_AUTH=false` no `.env` do frontend.
 
 ## Background runner
 

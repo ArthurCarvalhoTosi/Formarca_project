@@ -1,4 +1,5 @@
 import { env } from '@/shared/config/env'
+import { isMockAccessToken } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
 import { ApiError, type ApiRequestOptions } from './types'
 
@@ -34,6 +35,10 @@ function errorMessage(body: unknown, fallback: string): string {
 }
 
 async function refreshAccessToken(): Promise<string | null> {
+  if (env.mockAuth && isMockAccessToken(tokenStorage.getAccessToken())) {
+    return tokenStorage.getAccessToken()
+  }
+
   const refreshToken = tokenStorage.getRefreshToken()
   if (!refreshToken) return null
 
@@ -73,6 +78,10 @@ function getOrRefreshAccessToken(): Promise<string | null> {
     })
   }
   return refreshPromise
+}
+
+function isActiveMockSession(): boolean {
+  return env.mockAuth && isMockAccessToken(tokenStorage.getAccessToken())
 }
 
 export async function apiRequest<T>(
@@ -118,7 +127,12 @@ export async function apiRequest<T>(
     signal,
   })
 
-  if (response.status === 401 && !skipAuth && !skipRefresh) {
+  if (
+    response.status === 401 &&
+    !skipAuth &&
+    !skipRefresh &&
+    !isActiveMockSession()
+  ) {
     const newToken = await getOrRefreshAccessToken()
     if (newToken) {
       requestHeaders.Authorization = `Bearer ${newToken}`
@@ -142,7 +156,7 @@ export async function apiRequest<T>(
   const parsed = await parseBody(response)
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !isActiveMockSession()) {
       onUnauthorized?.()
     }
     throw new ApiError(
