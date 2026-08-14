@@ -1,11 +1,39 @@
 import { ConfigProvider, App as AntApp } from 'antd'
+import enUS from 'antd/locale/en_US'
 import ptBR from 'antd/locale/pt_BR'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { type ReactNode, useState } from 'react'
+import dayjs from 'dayjs'
+import 'dayjs/locale/en'
+import 'dayjs/locale/pt-br'
+import { type ReactNode, useEffect, useState } from 'react'
 import { AuthProvider } from '@/shared/auth/AuthContext'
+import { I18nProvider, useI18n } from '@/shared/i18n'
+import { antdThemeToken } from '@/shared/theme/tokens'
 
 type AppProvidersProps = {
   children: ReactNode
+}
+
+function AntdWithLocale({ children }: { children: ReactNode }) {
+  const { locale } = useI18n()
+  const antdLocale = locale === 'en' ? enUS : ptBR
+
+  useEffect(() => {
+    dayjs.locale(locale === 'en' ? 'en' : 'pt-br')
+  }, [locale])
+
+  return (
+    <ConfigProvider
+      locale={antdLocale}
+      theme={{
+        token: antdThemeToken,
+      }}
+    >
+      <AntApp>
+        <AuthProvider>{children}</AuthProvider>
+      </AntApp>
+    </ConfigProvider>
+  )
 }
 
 export function AppProviders({ children }: AppProvidersProps) {
@@ -23,21 +51,9 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider
-        locale={ptBR}
-        theme={{
-          token: {
-            colorPrimary: '#0b5f8a',
-            borderRadius: 8,
-            fontFamily:
-              '"Segoe UI", "Helvetica Neue", Arial, sans-serif',
-          },
-        }}
-      >
-        <AntApp>
-          <AuthProvider>{children}</AuthProvider>
-        </AntApp>
-      </ConfigProvider>
+      <I18nProvider>
+        <AntdWithLocale>{children}</AntdWithLocale>
+      </I18nProvider>
     </QueryClientProvider>
   )
 }

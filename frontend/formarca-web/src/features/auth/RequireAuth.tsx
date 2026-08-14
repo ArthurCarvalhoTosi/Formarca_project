@@ -1,9 +1,11 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Spin } from 'antd'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { useI18n } from '@/shared/i18n'
 
 export function RequireAuth() {
   const { status } = useAuth()
+  const { t } = useI18n()
   const location = useLocation()
 
   if (status === 'loading') {
@@ -15,7 +17,7 @@ export function RequireAuth() {
           placeItems: 'center',
         }}
       >
-        <Spin size="large" tip="Carregando sessão..." />
+        <Spin size="large" tip={t('session.loading')} />
       </div>
     )
   }

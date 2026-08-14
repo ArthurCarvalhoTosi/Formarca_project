@@ -3,27 +3,29 @@ import { useQuery } from '@tanstack/react-query'
 import { adminApi } from './api'
 import type { Group } from './types'
 import { ApiError } from '@/shared/api/types'
+import { useI18n } from '@/shared/i18n'
 
 export function GroupsPage() {
+  const { t } = useI18n()
   const query = useQuery({
     queryKey: ['admin', 'groups'],
     queryFn: () => adminApi.listGroups(),
   })
 
   if (query.isLoading) {
-    return <Spin tip="Carregando grupos..." />
+    return <Spin tip={t('admin.groupsLoading')} />
   }
 
   if (query.isError) {
     const message =
       query.error instanceof ApiError
         ? query.error.message
-        : 'Não foi possível carregar grupos.'
+        : t('admin.groupsLoadError')
     return (
       <Alert
         type="warning"
         showIcon
-        message="Grupos indisponíveis"
+        message={t('admin.groupsUnavailable')}
         description={message}
       />
     )
@@ -34,24 +36,26 @@ export function GroupsPage() {
   return (
     <div>
       <Typography.Title level={4} style={{ marginTop: 0 }}>
-        Grupos
+        {t('admin.groupsTitle')}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Grupos e permissões por tenant / plataforma (stub de listagem).
+        {t('admin.groupsDescription')}
       </Typography.Paragraph>
       <Table<Group>
         rowKey="id"
         dataSource={data}
-        locale={{ emptyText: 'Nenhum grupo encontrado.' }}
+        locale={{ emptyText: t('admin.groupsEmpty') }}
         columns={[
-          { title: 'Nome', dataIndex: 'name' },
+          { title: t('admin.colName'), dataIndex: 'name' },
           {
-            title: 'Escopo',
+            title: t('admin.colScope'),
             dataIndex: 'tenantId',
             render: (tenantId: string | null | undefined) =>
-              tenantId ? `Tenant ${tenantId}` : 'Plataforma',
+              tenantId
+                ? t('admin.scopeTenant', { id: tenantId })
+                : t('admin.scopePlatform'),
           },
-          { title: 'Descrição', dataIndex: 'description' },
+          { title: t('admin.colDescription'), dataIndex: 'description' },
         ]}
         pagination={{ pageSize: 10 }}
       />

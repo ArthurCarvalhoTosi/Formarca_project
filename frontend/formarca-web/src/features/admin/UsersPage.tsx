@@ -3,27 +3,29 @@ import { useQuery } from '@tanstack/react-query'
 import { adminApi } from './api'
 import type { UserListItem } from './types'
 import { ApiError } from '@/shared/api/types'
+import { useI18n } from '@/shared/i18n'
 
 export function UsersPage() {
+  const { t } = useI18n()
   const query = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: () => adminApi.listUsers(),
   })
 
   if (query.isLoading) {
-    return <Spin tip="Carregando usuários..." />
+    return <Spin tip={t('admin.usersLoading')} />
   }
 
   if (query.isError) {
     const message =
       query.error instanceof ApiError
         ? query.error.message
-        : 'Não foi possível carregar usuários.'
+        : t('admin.usersLoadError')
     return (
       <Alert
         type="warning"
         showIcon
-        message="Usuários indisponíveis"
+        message={t('admin.usersUnavailable')}
         description={message}
       />
     )
@@ -34,25 +36,24 @@ export function UsersPage() {
   return (
     <div>
       <Typography.Title level={4} style={{ marginTop: 0 }}>
-        Usuários
+        {t('admin.usersTitle')}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Listagem administrativa. Convites e vínculo a tenants serão adicionados
-        depois.
+        {t('admin.usersDescription')}
       </Typography.Paragraph>
       <Table<UserListItem>
         rowKey="id"
         dataSource={data}
-        locale={{ emptyText: 'Nenhum usuário encontrado.' }}
+        locale={{ emptyText: t('admin.usersEmpty') }}
         columns={[
-          { title: 'E-mail', dataIndex: 'email' },
-          { title: 'Nome', dataIndex: 'displayName' },
-          { title: 'Papel de plataforma', dataIndex: 'platformRole' },
+          { title: t('admin.colEmail'), dataIndex: 'email' },
+          { title: t('admin.colDisplayName'), dataIndex: 'displayName' },
+          { title: t('admin.colPlatformRole'), dataIndex: 'platformRole' },
           {
-            title: 'Ativo',
+            title: t('admin.colActive'),
             dataIndex: 'isActive',
             render: (value: boolean | undefined) =>
-              value === false ? 'Não' : 'Sim',
+              value === false ? t('common.no') : t('common.yes'),
           },
         ]}
         pagination={{ pageSize: 10 }}

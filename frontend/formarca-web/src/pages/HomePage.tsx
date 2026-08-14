@@ -1,30 +1,34 @@
 import { Typography } from 'antd'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { useI18n } from '@/shared/i18n'
 
 export function HomePage() {
   const { user, tenants, activeTenantId } = useAuth()
-  const activeTenant = tenants.find((t) => t.id === activeTenantId)
+  const { t } = useI18n()
+  const activeTenant = tenants.find((tenant) => tenant.id === activeTenantId)
+
+  const welcome = user?.displayName
+    ? t('home.welcomeNamed', { name: user.displayName })
+    : t('home.welcome')
 
   return (
     <div>
       <Typography.Title level={3} style={{ marginTop: 0 }}>
-        Home
+        {t('home.title')}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Bem-vindo{user?.displayName ? `, ${user.displayName}` : ''}. Esta é a
-        fundação do Painel do Cliente — os módulos de negócio entram em
-        entregas futuras.
+        {welcome} {t('home.foundation')}
       </Typography.Paragraph>
       {activeTenant ? (
         <Typography.Paragraph>
-          Tenant ativo: <Typography.Text strong>{activeTenant.name}</Typography.Text>
+          {t('home.activeTenant')}{' '}
+          <Typography.Text strong>{activeTenant.name}</Typography.Text>
         </Typography.Paragraph>
       ) : (
         <Typography.Paragraph type="secondary">
-          Nenhum tenant ativo na sessão
           {user?.platformRole === 'PlatformAdmin'
-            ? ' (esperado para Platform Admin sem membership).'
-            : '.'}
+            ? t('home.noActiveTenantAdmin')
+            : t('home.noActiveTenant')}
         </Typography.Paragraph>
       )}
     </div>

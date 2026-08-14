@@ -16,9 +16,31 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Slug).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.Email).HasMaxLength(256);
+        builder.Property(x => x.Phone).HasMaxLength(32);
         builder.Property(x => x.Document).HasMaxLength(32);
+        builder.Property(x => x.BrandName).HasMaxLength(200);
+        builder.Property(x => x.BrandDescription).HasMaxLength(4000);
         builder.HasIndex(x => x.Slug).IsUnique();
+        builder.HasIndex(x => x.Email)
+            .IsUnique()
+            .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
+        builder.HasIndex(x => x.Document)
+            .IsUnique()
+            .HasFilter("[Document] IS NOT NULL AND [IsDeleted] = 0");
         builder.Ignore(x => x.DomainEvents);
+
+        builder.OwnsOne(x => x.Address, address =>
+        {
+            address.Property(a => a.ZipCode).HasMaxLength(8).HasColumnName("AddressZipCode");
+            address.Property(a => a.Street).HasMaxLength(200).HasColumnName("AddressStreet");
+            address.Property(a => a.Number).HasMaxLength(20).HasColumnName("AddressNumber");
+            address.Property(a => a.Complement).HasMaxLength(100).HasColumnName("AddressComplement");
+            address.Property(a => a.Neighborhood).HasMaxLength(100).HasColumnName("AddressNeighborhood");
+            address.Property(a => a.City).HasMaxLength(100).HasColumnName("AddressCity");
+            address.Property(a => a.State).HasMaxLength(2).HasColumnName("AddressState");
+        });
+        builder.Navigation(x => x.Address).IsRequired(false);
     }
 }
 

@@ -58,7 +58,8 @@ public sealed class SwitchTenantCommandHandler(
             }
         }
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(
+            repository, user.Id, cancellationToken, includeNonActiveTenants: user.IsPlatformAdmin);
         if (user.IsPlatformAdmin && tenants.All(t => t.Id != tenant.Id))
         {
             tenants = tenants.Append(new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, false)).ToList();

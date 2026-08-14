@@ -9,6 +9,8 @@ public static class PermissionCodes
     public const string GroupsRead = "groups.read";
     public const string GroupsManage = "groups.manage";
     public const string ProcessesRead = "processes.read";
+    public const string RegistrationsRead = "registrations.read";
+    public const string RegistrationsManage = "registrations.manage";
 
     public const string ClaimType = "permission";
 
@@ -20,6 +22,8 @@ public static class PermissionCodes
         (UsersManage, "Manage users"),
         (GroupsRead, "Read groups"),
         (GroupsManage, "Manage groups"),
-        (ProcessesRead, "Read processes")
+        (ProcessesRead, "Read processes"),
+        (RegistrationsRead, "Read registration"),
+        (RegistrationsManage, "Manage registration")
     ];
 }

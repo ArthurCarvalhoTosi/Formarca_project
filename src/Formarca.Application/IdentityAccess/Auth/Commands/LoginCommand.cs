@@ -41,7 +41,8 @@ public sealed class LoginCommandHandler(
             throw new UnauthorizedAppException("Invalid email or password.");
         }
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(
+            repository, user.Id, cancellationToken, includeNonActiveTenants: user.IsPlatformAdmin);
         Guid? tenantId = request.TenantId;
 
         if (tenantId is null)

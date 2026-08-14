@@ -31,7 +31,7 @@ export function mockLogin(payload: LoginRequest): LoginResponse {
   const expected = MOCK_CREDENTIALS.email.toLowerCase()
 
   if (email !== expected || payload.password !== MOCK_CREDENTIALS.password) {
-    throw new ApiError(401, 'Credenciais inválidas (modo mock).')
+    throw new ApiError(401, 'Invalid credentials')
   }
 
   const preferred =

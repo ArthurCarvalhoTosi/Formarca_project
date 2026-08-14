@@ -26,11 +26,38 @@ public sealed record CurrentUserDto(
     IReadOnlyList<TenantSummaryDto> Tenants,
     IReadOnlyList<string> Permissions);
 
+public sealed record AddressDto(
+    string ZipCode,
+    string Street,
+    string Number,
+    string? Complement,
+    string Neighborhood,
+    string City,
+    string State);
+
+public sealed record RegistrationDto(
+    Guid Id,
+    string Name,
+    string Slug,
+    string Email,
+    string Phone,
+    string Document,
+    string BrandName,
+    string BrandDescription,
+    AddressDto Address,
+    string Status,
+    DateTime CreatedAtUtc);
+
 public sealed record TenantDto(
     Guid Id,
     string Name,
     string Slug,
+    string? Email,
+    string? Phone,
     string? Document,
+    string? BrandName,
+    string? BrandDescription,
+    AddressDto? Address,
     string Status,
     DateTime CreatedAtUtc);
 

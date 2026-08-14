@@ -46,7 +46,9 @@ public static class AuthorizationExtensions
             .AddPolicy(PermissionCodes.UsersRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.UsersRead)))
             .AddPolicy(PermissionCodes.UsersManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.UsersManage)))
             .AddPolicy(PermissionCodes.GroupsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.GroupsRead)))
-            .AddPolicy(PermissionCodes.GroupsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.GroupsManage)));
+            .AddPolicy(PermissionCodes.GroupsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.GroupsManage)))
+            .AddPolicy(PermissionCodes.RegistrationsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.RegistrationsRead)))
+            .AddPolicy(PermissionCodes.RegistrationsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.RegistrationsManage)));
 
         return services;
     }
