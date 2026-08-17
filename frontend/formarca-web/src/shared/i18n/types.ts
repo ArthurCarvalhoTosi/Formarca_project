@@ -238,6 +238,7 @@ export type Dictionary = {
     colDocument: string
     colEmail: string
     colStatus: string
+    mockHint: string
   }
   contracts: {
     pageTitle: string

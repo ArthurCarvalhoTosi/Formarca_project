@@ -41,8 +41,10 @@ try
         app.MapOpenApi();
         app.UseCors("FrontendDev");
     }
-
-    app.UseHttpsRedirection();
+    else
+    {
+        app.UseHttpsRedirection();
+    }
     app.UseAuthentication();
     app.UseMiddleware<TenantResolutionMiddleware>();
     app.UseAuthorization();

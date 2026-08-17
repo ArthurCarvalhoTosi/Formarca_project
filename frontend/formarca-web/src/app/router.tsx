@@ -57,6 +57,11 @@ function AppRoutes() {
             }
           />
 
+          <Route
+            path="tenants"
+            element={<Navigate to="/admin/tenants" replace />}
+          />
+
           <Route path="admin" element={<RequirePlatformAdmin />}>
             <Route element={<AdminLayout />}>
               <Route index element={<Navigate to="tenants" replace />} />

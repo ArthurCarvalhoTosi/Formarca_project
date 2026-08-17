@@ -216,7 +216,7 @@ export function mockUpdateRegistration(
 ): RegistrationDto {
   const tenantId = tokenStorage.getActiveTenantId()
   if (!tenantId) {
-    throw new ApiError(404, 'No active tenant')
+    throw new ApiError(404, 'No active customer')
   }
   const record = mockTenantRecords.find((item) => item.id === tenantId)
   if (!record || record.status !== 'Active') {
@@ -240,10 +240,10 @@ export function mockApproveTenant(id: string, password: string): void {
   }
   const record = mockTenantRecords.find((item) => item.id === id)
   if (!record) {
-    throw new ApiError(404, 'Tenant not found')
+    throw new ApiError(404, 'Customer not found')
   }
   if (record.status !== 'Pending') {
-    throw new ApiError(409, 'Tenant is not pending')
+    throw new ApiError(409, 'Customer is not pending')
   }
   record.status = 'Active'
 }
@@ -251,10 +251,10 @@ export function mockApproveTenant(id: string, password: string): void {
 export function mockRejectTenant(id: string): void {
   const record = mockTenantRecords.find((item) => item.id === id)
   if (!record) {
-    throw new ApiError(404, 'Tenant not found')
+    throw new ApiError(404, 'Customer not found')
   }
   if (record.status !== 'Pending') {
-    throw new ApiError(409, 'Tenant is not pending')
+    throw new ApiError(409, 'Customer is not pending')
   }
   record.status = 'Inactive'
 }

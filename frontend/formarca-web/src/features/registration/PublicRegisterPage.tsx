@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { Alert, Button, Result, Spin, Typography } from 'antd'
 import { BrandLogo } from '@/shared/brand/BrandLogo'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { env } from '@/shared/config/env'
 import { LocaleSwitcher, useI18n } from '@/shared/i18n'
 import { mapRegistrationError, registrationApi } from './api'
 import { RegistrationForm } from './RegistrationForm'
@@ -60,6 +61,15 @@ export function PublicRegisterPage() {
             {t('registration.publicSubtitle')}
           </Typography.Paragraph>
         </div>
+
+        {env.mockAuth ? (
+          <Alert
+            type="info"
+            showIcon
+            message={t('customers.mockHint')}
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
 
         {submitted ? (
           <Result

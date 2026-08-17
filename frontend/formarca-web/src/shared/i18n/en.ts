@@ -63,10 +63,10 @@ export const en: Dictionary = {
     welcomeNamed: 'Welcome, {name}.',
     foundation:
       'This is the Client Panel foundation — business modules arrive in later deliveries.',
-    activeTenant: 'Active tenant:',
-    noActiveTenant: 'No active tenant in this session.',
+    activeTenant: 'Active customer:',
+    noActiveTenant: 'No active customer in this session.',
     noActiveTenantAdmin:
-      'No active tenant in this session (expected for a Platform Admin without membership).',
+      'No active customer in this session (expected for a Platform Admin without membership).',
   },
   placeholder: {
     comingSoon: 'Module planned for the Client Panel. Coming soon.',
@@ -79,31 +79,31 @@ export const en: Dictionary = {
     user: 'User',
     logout: 'Sign out',
     company: 'Company',
-    selectTenant: 'Select tenant',
+    selectTenant: 'Select customer',
   },
   admin: {
-    tenants: 'Tenants',
+    tenants: 'Customers',
     users: 'Users',
     groups: 'Groups',
-    tenantsTitle: 'Tenants',
+    tenantsTitle: 'Customers',
     tenantsDescription:
       'Foundation listing (minimal CRUD). Full create/edit comes with the admin API.',
-    tenantsUnavailable: 'Tenants unavailable',
-    tenantsLoadError: 'Could not load tenants.',
+    tenantsUnavailable: 'Customers unavailable',
+    tenantsLoadError: 'Could not load customers.',
     tenantsLoadHint:
       'The API may still be offline — this screen accepts an empty list when the backend responds.',
-    tenantsEmpty: 'No tenants found.',
-    tenantsLoading: 'Loading tenants...',
+    tenantsEmpty: 'No customers found.',
+    tenantsLoading: 'Loading customers...',
     usersTitle: 'Users',
     usersDescription:
-      'Admin listing. Invites and tenant membership will be added later.',
+      'Admin listing. Invites and customer membership will be added later.',
     usersUnavailable: 'Users unavailable',
     usersLoadError: 'Could not load users.',
     usersEmpty: 'No users found.',
     usersLoading: 'Loading users...',
     groupsTitle: 'Groups',
     groupsDescription:
-      'Groups and permissions per tenant / platform (listing stub).',
+      'Groups and permissions per customer / platform (listing stub).',
     groupsUnavailable: 'Groups unavailable',
     groupsLoadError: 'Could not load groups.',
     groupsEmpty: 'No groups found.',
@@ -118,22 +118,22 @@ export const en: Dictionary = {
     colActive: 'Active',
     colScope: 'Scope',
     colDescription: 'Description',
-    scopeTenant: 'Tenant {id}',
+    scopeTenant: 'Customer {id}',
     scopePlatform: 'Platform',
     restrictedTitle: 'Restricted access',
     restrictedSubtitle:
       'This area is only for Formarca platform administrators.',
     approve: 'Approve',
     reject: 'Reject',
-    approveTitle: 'Approve tenant',
+    approveTitle: 'Approve customer',
     approvePassword: 'Initial password',
-    approveSuccess: 'Tenant approved.',
-    approveFailed: 'Could not approve the tenant.',
+    approveSuccess: 'Customer approved.',
+    approveFailed: 'Could not approve the customer.',
     rejectConfirmTitle: 'Reject registration?',
     rejectConfirmContent:
-      'The tenant will become inactive and no user will be created.',
-    rejectSuccess: 'Tenant rejected.',
-    rejectFailed: 'Could not reject the tenant.',
+      'The customer will become inactive and no user will be created.',
+    rejectSuccess: 'Customer rejected.',
+    rejectFailed: 'Could not reject the customer.',
   },
   status: {
     Pending: 'Pending',
@@ -151,9 +151,11 @@ export const en: Dictionary = {
       'We received your details. Wait for ForMarca team approval before signing in.',
     goToLogin: 'Go to sign in',
     panelTitle: 'Registration',
-    panelDescription: 'Company and primary brand details for the active tenant.',
-    emptyTitle: 'No active tenant',
-    emptyDescription: 'Select an active tenant to view and edit registration.',
+    panelDescription:
+      'Company and primary brand details for the active customer.',
+    emptyTitle: 'No active customer',
+    emptyDescription:
+      'Select an active customer to view and edit registration.',
     save: 'Save registration',
     saveSuccess: 'Registration updated.',
     sections: {
@@ -212,6 +214,8 @@ export const en: Dictionary = {
     colDocument: 'Document',
     colEmail: 'Email',
     colStatus: 'Status',
+    mockHint:
+      'Mock auth is on (VITE_MOCK_AUTH). Registrations stay in the browser only, not SQL. To persist, set VITE_MOCK_AUTH=false in .env and restart Vite.',
   },
   contracts: {
     pageTitle: 'Contract registration',

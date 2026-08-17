@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Button, Input, Spin, Table, Tag, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import { TenantApprovalControls } from '@/features/admin/TenantApprovalControls'
 import { ApiError } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { env } from '@/shared/config/env'
 import { useI18n } from '@/shared/i18n'
 import type { Dictionary } from '@/shared/i18n'
 import { customersApi } from './api'
@@ -87,15 +89,24 @@ export function CustomersPage() {
         {t('customers.description')}
       </Typography.Paragraph>
 
-      <div
-        style={{
+      {env.mockAuth ? (
+        <Alert
+          type="info"
+          showIcon
+          message={t('customers.mockHint')}
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+
+      <div>
+        <div style={{
           display: 'flex',
           gap: 16,
           marginBottom: 16,
           flexWrap: 'wrap',
           alignItems: 'center',
         }}
-      >
+      />
         <Input.Search
           allowClear
           placeholder={t('customers.searchPlaceholder')}
@@ -139,6 +150,17 @@ export function CustomersPage() {
               <Tag color={statusColor(status)}>{statusLabel(status, dict)}</Tag>
             ),
           },
+          ...(isPlatformAdmin
+            ? [
+                {
+                  title: t('common.actions'),
+                  key: 'actions',
+                  render: (_: unknown, row: CustomerListItem) => (
+                    <TenantApprovalControls tenant={row} stopRowClick />
+                  ),
+                },
+              ]
+            : []),
         ]}
         pagination={{ pageSize: 10 }}
       />
