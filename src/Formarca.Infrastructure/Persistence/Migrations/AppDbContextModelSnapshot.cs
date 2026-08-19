@@ -385,9 +385,7 @@ namespace Formarca.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Document")
-                        .IsUnique()
-                        .HasFilter("[Document] IS NOT NULL AND [IsDeleted] = 0");
+                    b.HasIndex("Document");
 
                     b.HasIndex("Email")
                         .IsUnique()

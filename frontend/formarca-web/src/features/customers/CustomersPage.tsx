@@ -117,7 +117,7 @@ export function CustomersPage() {
         />
         <Button
           type="primary"
-          onClick={() => navigate('/cadastro/clientes/novo')}
+          onClick={() => navigate('/clientes/novo')}
         >
           {t('customers.new')}
         </Button>
@@ -128,7 +128,7 @@ export function CustomersPage() {
         dataSource={filtered}
         locale={{ emptyText: t('customers.empty') }}
         onRow={(record) => ({
-          onClick: () => navigate(`/cadastro/clientes/${record.id}`),
+          onClick: () => navigate(`/clientes/${record.id}`),
           style: { cursor: 'pointer' },
         })}
         columns={[

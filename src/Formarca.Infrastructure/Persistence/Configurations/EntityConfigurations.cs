@@ -25,9 +25,7 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.HasIndex(x => x.Email)
             .IsUnique()
             .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
-        builder.HasIndex(x => x.Document)
-            .IsUnique()
-            .HasFilter("[Document] IS NOT NULL AND [IsDeleted] = 0");
+        builder.HasIndex(x => x.Document);
         builder.Ignore(x => x.DomainEvents);
 
         builder.OwnsOne(x => x.Address, address =>

@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AppShell } from '@/app/layout/AppShell'
 import { AdminLayout } from '@/features/admin/AdminLayout'
 import { GroupsPage } from '@/features/admin/GroupsPage'
@@ -14,6 +14,11 @@ import { PublicRegisterPage } from '@/features/registration/PublicRegisterPage'
 import { HomePage } from '@/pages/HomePage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { useI18n } from '@/shared/i18n'
+
+function LegacyCustomerRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/clientes/${id}`} replace />
+}
 
 function AppRoutes() {
   const { t } = useI18n()
@@ -36,16 +41,25 @@ function AppRoutes() {
             }
           />
           <Route path="contratos" element={<ContractsPage />} />
-          <Route path="cadastro/clientes" element={<CustomersPage />} />
-          <Route path="cadastro/clientes/novo" element={<CustomerFormPage />} />
-          <Route path="cadastro/clientes/:id" element={<CustomerFormPage />} />
+          <Route path="clientes" element={<CustomersPage />} />
+          <Route path="clientes/novo" element={<CustomerFormPage />} />
+          <Route path="clientes/:id" element={<CustomerFormPage />} />
+          <Route path="cadastro" element={<Navigate to="/clientes" replace />} />
           <Route
-            path="cadastro"
-            element={<Navigate to="/cadastro/clientes" replace />}
+            path="cadastro/clientes"
+            element={<Navigate to="/clientes" replace />}
+          />
+          <Route
+            path="cadastro/clientes/novo"
+            element={<Navigate to="/clientes/novo" replace />}
+          />
+          <Route
+            path="cadastro/clientes/:id"
+            element={<LegacyCustomerRedirect />}
           />
           <Route
             path="registration"
-            element={<Navigate to="/cadastro/clientes" replace />}
+            element={<Navigate to="/clientes" replace />}
           />
           <Route
             path="informacoes"

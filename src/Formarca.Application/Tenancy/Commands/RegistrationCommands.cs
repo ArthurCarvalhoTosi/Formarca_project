@@ -36,7 +36,7 @@ public sealed class SubmitRegistrationCommandHandler(
         tenantContext.SetIgnoreTenantFilters(true);
 
         await RegistrationUniqueness.EnsureAvailableAsync(
-            repository, identity, request.Email, request.Document, excludeTenantId: null, currentEmail: null, cancellationToken);
+            repository, identity, request.Email, excludeTenantId: null, currentEmail: null, cancellationToken);
 
         var slug = await RegistrationUniqueness.AllocateSlugAsync(repository, request.Name, cancellationToken);
         var tenant = Tenant.Register(
@@ -98,7 +98,7 @@ public sealed class UpdateRegistrationCommandHandler(
         }
 
         await RegistrationUniqueness.EnsureAvailableAsync(
-            repository, identity, request.Email, request.Document, tenant.Id, tenant.Email, cancellationToken);
+            repository, identity, request.Email, tenant.Id, tenant.Email, cancellationToken);
 
         tenant.UpdateRegistration(
             request.Name,
@@ -155,7 +155,7 @@ public sealed class UpdateRegistrationByTenantIdCommandHandler(
         }
 
         await RegistrationUniqueness.EnsureAvailableAsync(
-            repository, identity, request.Email, request.Document, tenant.Id, tenant.Email, cancellationToken);
+            repository, identity, request.Email, tenant.Id, tenant.Email, cancellationToken);
 
         tenant.UpdateRegistration(
             request.Name,
@@ -177,13 +177,11 @@ internal static class RegistrationUniqueness
         IGenericRepository repository,
         IIdentityService identity,
         string email,
-        string document,
         Guid? excludeTenantId,
         string? currentEmail,
         CancellationToken cancellationToken)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        var documentDigits = BrazilianDocuments.DigitsOnly(document);
 
         var emailTaken = await repository.Query<Tenant>()
             .AnyAsync(
@@ -208,20 +206,6 @@ internal static class RegistrationUniqueness
             {
                 throw new ConflictException("A user with this email already exists.");
             }
-        }
-
-        var documentTaken = await repository.Query<Tenant>()
-            .AnyAsync(
-                t => !t.IsDeleted
-                    && t.Document != null
-                    && (t.Document == documentDigits
-                        || t.Document.Replace(".", "").Replace("-", "").Replace("/", "") == documentDigits)
-                    && (excludeTenantId == null || t.Id != excludeTenantId),
-                cancellationToken);
-
-        if (documentTaken)
-        {
-            throw new ConflictException("A tenant with this document already exists.");
         }
     }
 

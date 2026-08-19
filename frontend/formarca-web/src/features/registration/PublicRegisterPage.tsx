@@ -25,7 +25,7 @@ export function PublicRegisterPage() {
   }
 
   if (status === 'authenticated') {
-    return <Navigate to="/cadastro/clientes" replace />
+    return <Navigate to="/clientes" replace />
   }
 
   const onSubmit = async (values: RegistrationPayload) => {

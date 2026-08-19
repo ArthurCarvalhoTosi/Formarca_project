@@ -8,7 +8,7 @@ import type {
   RegistrationPayload,
 } from './types'
 import { toRegistrationPayload } from './payload'
-import { onlyDigits, slugify } from './validation'
+import { slugify } from './validation'
 
 export type MockTenantStatus = 'Pending' | 'Active' | 'Inactive' | 'Suspended'
 
@@ -124,24 +124,14 @@ function uniqueSlug(base: string): string {
   return slug
 }
 
-function assertUniqueContact(
-  email: string,
-  document: string,
-  exceptId?: string,
-): void {
+function assertUniqueEmail(email: string, exceptId?: string): void {
   const emailNorm = email.trim().toLowerCase()
-  const doc = onlyDigits(document)
   const clash = mockTenantRecords.find(
-    (record) =>
-      record.id !== exceptId &&
-      (record.email.toLowerCase() === emailNorm ||
-        onlyDigits(record.document) === doc),
+    (record) => record.id !== exceptId && record.email.toLowerCase() === emailNorm,
   )
-  if (!clash) return
-  if (clash.email.toLowerCase() === emailNorm) {
+  if (clash) {
     throw new ApiError(409, 'Email already registered')
   }
-  throw new ApiError(409, 'Document already registered')
 }
 
 export function mockListTenants(): Tenant[] {
@@ -174,7 +164,7 @@ export function mockUpdateRegistrationById(
     throw new ApiError(404, 'Registration not found')
   }
   const body = toRegistrationPayload(payload)
-  assertUniqueContact(body.email, body.document, record.id)
+  assertUniqueEmail(body.email, record.id)
   record.name = body.name
   record.email = body.email
   record.phone = body.phone
@@ -187,7 +177,7 @@ export function mockUpdateRegistrationById(
 
 export function mockSubmitRegistration(payload: RegistrationPayload): void {
   const body = toRegistrationPayload(payload)
-  assertUniqueContact(body.email, body.document)
+  assertUniqueEmail(body.email)
   mockTenantRecords.push({
     id: crypto.randomUUID(),
     name: body.name,
@@ -223,7 +213,7 @@ export function mockUpdateRegistration(
     throw new ApiError(404, 'Registration not found')
   }
   const body = toRegistrationPayload(payload)
-  assertUniqueContact(body.email, body.document, record.id)
+  assertUniqueEmail(body.email, record.id)
   record.name = body.name
   record.email = body.email
   record.phone = body.phone

@@ -25,7 +25,7 @@ export function CustomerFormPage() {
     enabled: !isNew,
   })
 
-  const goToList = () => navigate('/cadastro/clientes')
+  const goToList = () => navigate('/clientes')
 
   const invalidate = async () => {
     await Promise.all([

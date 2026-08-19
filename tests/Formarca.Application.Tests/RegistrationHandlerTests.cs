@@ -31,6 +31,30 @@ public class RegistrationHandlerTests
     }
 
     [Fact]
+    public async Task Submit_Allows_Same_Document_On_Different_Tenants()
+    {
+        var repository = new InMemoryRepository();
+        var identity = new FakeIdentityService();
+        var handler = new SubmitRegistrationCommandHandler(repository, identity, new FakeTenantContext());
+
+        await handler.Handle(ValidSubmit(), CancellationToken.None);
+        await handler.Handle(
+            ValidSubmit() with
+            {
+                Name = "Acme Brand Two",
+                Email = "brand2@acme.com",
+                BrandName = "Acme Two",
+                BrandDescription = "Second brand",
+            },
+            CancellationToken.None);
+
+        var tenants = repository.Query<Tenant>().ToList();
+        Assert.Equal(2, tenants.Count);
+        Assert.All(tenants, tenant => Assert.Equal("39053344705", tenant.Document));
+        Assert.Equal(2, tenants.Select(t => t.Slug).Distinct().Count());
+    }
+
+    [Fact]
     public async Task Approve_Creates_User_And_Activates_Tenant()
     {
         var repository = new InMemoryRepository();

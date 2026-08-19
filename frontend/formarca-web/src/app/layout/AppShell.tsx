@@ -8,7 +8,7 @@ import {
   Info,
   Settings,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { TenantSwitcher } from '@/features/tenants/TenantSwitcher'
 import { BrandLogo } from '@/shared/brand/BrandLogo'
@@ -37,28 +37,16 @@ export function AppShell() {
     if (path.startsWith('/admin')) return 'admin'
     if (path.startsWith('/processos')) return 'processos'
     if (path.startsWith('/contratos')) return 'contratos'
-    if (path.startsWith('/registration') || path.startsWith('/cadastro')) {
-      return 'cadastro/clientes'
+    if (
+      path.startsWith('/clientes') ||
+      path.startsWith('/cadastro') ||
+      path.startsWith('/registration')
+    ) {
+      return 'clientes'
     }
     if (path.startsWith('/informacoes')) return 'informacoes'
     return 'home'
   }, [location.pathname])
-
-  const cadastroOpen =
-    location.pathname.startsWith('/cadastro') ||
-    location.pathname.startsWith('/registration')
-
-  const [openKeys, setOpenKeys] = useState<string[]>(() =>
-    cadastroOpen ? ['cadastro'] : [],
-  )
-
-  useEffect(() => {
-    if (cadastroOpen) {
-      setOpenKeys((keys) =>
-        keys.includes('cadastro') ? keys : [...keys, 'cadastro'],
-      )
-    }
-  }, [cadastroOpen])
 
   const items: MenuProps['items'] = [
     {
@@ -77,15 +65,9 @@ export function AppShell() {
       label: t('nav.contracts'),
     },
     {
-      key: 'cadastro',
+      key: 'clientes',
       icon: menuIcon(Briefcase),
-      label: t('nav.registration'),
-      children: [
-        {
-          key: 'cadastro/clientes',
-          label: t('nav.customers'),
-        },
-      ],
+      label: t('nav.customers'),
     },
     {
       key: 'informacoes',
@@ -123,13 +105,8 @@ export function AppShell() {
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
-          openKeys={collapsed ? undefined : openKeys}
-          onOpenChange={(keys) => {
-            if (!collapsed) setOpenKeys(keys)
-          }}
           items={items}
           onClick={({ key }) => {
-            if (key === 'cadastro') return
             if (key === 'admin') {
               navigate('/admin/tenants')
               return
