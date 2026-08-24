@@ -1,4 +1,4 @@
-import { maskPhone, maskTaxId, maskZipCode } from './masks'
+import { maskCpf, maskPhone, maskTaxId, maskZipCode } from './masks'
 import type { RegistrationDto, RegistrationPayload } from './types'
 import { onlyDigits } from './validation'
 
@@ -10,8 +10,13 @@ export function toRegistrationPayload(
     email: values.email.trim(),
     phone: onlyDigits(values.phone),
     document: onlyDigits(values.document),
-    brandName: values.brandName.trim(),
-    brandDescription: values.brandDescription.trim(),
+    legalRepresentativeName: values.legalRepresentativeName.trim(),
+    legalRepresentativeDocument: onlyDigits(values.legalRepresentativeDocument),
+    quotedAmount:
+      values.quotedAmount == null || Number.isNaN(Number(values.quotedAmount))
+        ? null
+        : Number(values.quotedAmount),
+    budgetNotes: values.budgetNotes?.trim() ? values.budgetNotes.trim() : null,
     address: {
       zipCode: onlyDigits(values.address.zipCode),
       street: values.address.street.trim(),
@@ -32,8 +37,12 @@ export function toFormValues(dto: RegistrationDto): RegistrationPayload {
     email: dto.email,
     phone: maskPhone(dto.phone),
     document: maskTaxId(dto.document),
-    brandName: dto.brandName,
-    brandDescription: dto.brandDescription,
+    legalRepresentativeName: dto.legalRepresentativeName ?? '',
+    legalRepresentativeDocument: dto.legalRepresentativeDocument
+      ? maskCpf(dto.legalRepresentativeDocument)
+      : '',
+    quotedAmount: dto.quotedAmount ?? null,
+    budgetNotes: dto.budgetNotes ?? '',
     address: {
       zipCode: maskZipCode(dto.address.zipCode),
       street: dto.address.street,

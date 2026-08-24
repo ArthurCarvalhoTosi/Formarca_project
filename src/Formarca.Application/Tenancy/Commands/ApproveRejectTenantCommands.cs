@@ -66,12 +66,12 @@ public sealed class ApproveTenantCommandHandler(
 
         repository.Add(UserTenantMembership.Create(userId.Value, tenant.Id, isDefault: true));
 
-        var adminGroup = await repository.FirstOrDefaultAsync<Group>(
-            g => g.TenantId == tenant.Id && g.Name == DefaultGroupNames.TenantAdmins && !g.IsDeleted,
+        var onboardingGroup = await repository.FirstOrDefaultAsync<Group>(
+            g => g.TenantId == tenant.Id && g.Name == DefaultGroupNames.ClientOnboarding && !g.IsDeleted,
             cancellationToken)
-            ?? throw new ConflictException("TenantAdmins group was not created.");
+            ?? throw new ConflictException("ClientOnboarding group was not created.");
 
-        repository.Add(UserGroupMembership.Create(userId.Value, tenant.Id, adminGroup.Id));
+        repository.Add(UserGroupMembership.Create(userId.Value, tenant.Id, onboardingGroup.Id));
 
         tenant.Approve();
         await repository.CommitAsync(cancellationToken);

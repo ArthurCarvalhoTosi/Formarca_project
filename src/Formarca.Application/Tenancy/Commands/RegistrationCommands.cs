@@ -3,6 +3,7 @@ using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Application.Tenancy;
+using Formarca.Domain.Brands;
 using Formarca.Domain.Tenancy;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -15,14 +16,27 @@ public sealed record SubmitRegistrationCommand(
     string Phone,
     string Document,
     AddressDto Address,
-    string BrandName,
-    string BrandDescription) : IRequest<RegistrationDto>, IRegistrationFields;
+    string? BrandName = null,
+    string? BrandDescription = null,
+    string? LegalRepresentativeName = null,
+    string? LegalRepresentativeDocument = null,
+    decimal? QuotedAmount = null,
+    string? BudgetNotes = null) : IRequest<RegistrationDto>, IRegistrationCommercialFields;
 
 public sealed class SubmitRegistrationCommandValidator : AbstractValidator<SubmitRegistrationCommand>
 {
     public SubmitRegistrationCommandValidator()
     {
-        RegistrationValidationRules.Apply(this);
+        RegistrationValidationRules.ApplyCommercial(this);
+        RuleFor(x => x.BrandName).MaximumLength(200);
+        RuleFor(x => x.BrandDescription).MaximumLength(4000);
+        When(
+            x => !string.IsNullOrWhiteSpace(x.BrandName) || !string.IsNullOrWhiteSpace(x.BrandDescription),
+            () =>
+            {
+                RuleFor(x => x.BrandName).NotEmpty().MaximumLength(200);
+                RuleFor(x => x.BrandDescription).NotEmpty().MaximumLength(4000);
+            });
     }
 }
 
@@ -45,11 +59,26 @@ public sealed class SubmitRegistrationCommandHandler(
             request.Email,
             request.Phone,
             request.Document,
+            request.Address.ToAddress());
+
+        tenant.UpdateRegistration(
+            request.Name,
+            request.Email,
+            request.Phone,
+            request.Document,
             request.Address.ToAddress(),
-            request.BrandName,
-            request.BrandDescription);
+            request.LegalRepresentativeName,
+            request.LegalRepresentativeDocument,
+            request.QuotedAmount,
+            request.BudgetNotes);
 
         repository.Add(tenant);
+
+        if (!string.IsNullOrWhiteSpace(request.BrandName) && !string.IsNullOrWhiteSpace(request.BrandDescription))
+        {
+            repository.Add(Brand.Create(tenant.Id, request.BrandName, request.BrandDescription));
+        }
+
         await repository.CommitAsync(cancellationToken);
 
         return tenant.ToRegistrationDto();
@@ -62,14 +91,16 @@ public sealed record UpdateRegistrationCommand(
     string Phone,
     string Document,
     AddressDto Address,
-    string BrandName,
-    string BrandDescription) : IRequest<RegistrationDto>, IRegistrationFields;
+    string? LegalRepresentativeName,
+    string? LegalRepresentativeDocument,
+    decimal? QuotedAmount,
+    string? BudgetNotes) : IRequest<RegistrationDto>, IRegistrationCommercialFields;
 
 public sealed class UpdateRegistrationCommandValidator : AbstractValidator<UpdateRegistrationCommand>
 {
     public UpdateRegistrationCommandValidator()
     {
-        RegistrationValidationRules.Apply(this);
+        RegistrationValidationRules.ApplyCommercial(this);
     }
 }
 
@@ -92,7 +123,7 @@ public sealed class UpdateRegistrationCommandHandler(
             t => t.Id == currentUser.TenantId && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
-        if (tenant.Status != TenantStatus.Active && !currentUser.IsPlatformAdmin)
+        if (!tenant.Status.AllowsClientAccess() && !currentUser.IsPlatformAdmin)
         {
             throw new ForbiddenException("Tenant is not available.");
         }
@@ -106,8 +137,10 @@ public sealed class UpdateRegistrationCommandHandler(
             request.Phone,
             request.Document,
             request.Address.ToAddress(),
-            request.BrandName,
-            request.BrandDescription);
+            request.LegalRepresentativeName,
+            request.LegalRepresentativeDocument,
+            request.QuotedAmount,
+            request.BudgetNotes);
 
         await repository.CommitAsync(cancellationToken);
         return tenant.ToRegistrationDto();
@@ -121,14 +154,16 @@ public sealed record UpdateRegistrationByTenantIdCommand(
     string Phone,
     string Document,
     AddressDto Address,
-    string BrandName,
-    string BrandDescription) : IRequest<RegistrationDto>, IRegistrationFields;
+    string? LegalRepresentativeName,
+    string? LegalRepresentativeDocument,
+    decimal? QuotedAmount,
+    string? BudgetNotes) : IRequest<RegistrationDto>, IRegistrationCommercialFields;
 
 public sealed class UpdateRegistrationByTenantIdCommandValidator : AbstractValidator<UpdateRegistrationByTenantIdCommand>
 {
     public UpdateRegistrationByTenantIdCommandValidator()
     {
-        RegistrationValidationRules.Apply(this);
+        RegistrationValidationRules.ApplyCommercial(this);
     }
 }
 
@@ -149,7 +184,7 @@ public sealed class UpdateRegistrationByTenantIdCommandHandler(
             t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
-        if (tenant.Status != TenantStatus.Active && !currentUser.IsPlatformAdmin)
+        if (!tenant.Status.AllowsClientAccess() && !currentUser.IsPlatformAdmin)
         {
             throw new ForbiddenException("Tenant is not available.");
         }
@@ -163,8 +198,10 @@ public sealed class UpdateRegistrationByTenantIdCommandHandler(
             request.Phone,
             request.Document,
             request.Address.ToAddress(),
-            request.BrandName,
-            request.BrandDescription);
+            request.LegalRepresentativeName,
+            request.LegalRepresentativeDocument,
+            request.QuotedAmount,
+            request.BudgetNotes);
 
         await repository.CommitAsync(cancellationToken);
         return tenant.ToRegistrationDto();

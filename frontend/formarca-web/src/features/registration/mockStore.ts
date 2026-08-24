@@ -1,5 +1,5 @@
 import { ApiError } from '@/shared/api/types'
-import { MOCK_TENANTS } from '@/shared/auth/mockAuth'
+import { MOCK_TENANTS, syncMockTenantStatus } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
 import type { Tenant } from '@/features/admin/types'
 import type {
@@ -10,7 +10,12 @@ import type {
 import { toRegistrationPayload } from './payload'
 import { slugify } from './validation'
 
-export type MockTenantStatus = 'Pending' | 'Active' | 'Inactive' | 'Suspended'
+export type MockTenantStatus =
+  | 'Pending'
+  | 'Onboarding'
+  | 'Active'
+  | 'Inactive'
+  | 'Suspended'
 
 export type MockTenantRecord = {
   id: string
@@ -20,6 +25,10 @@ export type MockTenantRecord = {
   status: MockTenantStatus
   email: string
   phone: string
+  legalRepresentativeName: string
+  legalRepresentativeDocument: string
+  quotedAmount: number | null
+  budgetNotes: string | null
   brandName: string
   brandDescription: string
   address: AddressDto
@@ -56,6 +65,10 @@ const mockTenantRecords: MockTenantRecord[] = [
     status: 'Active',
     email: 'demo@formarca.com',
     phone: '11988880001',
+    legalRepresentativeName: 'Ana Souza',
+    legalRepresentativeDocument: '39053344705',
+    quotedAmount: 15000,
+    budgetNotes: 'Pacote completo de registro de marca.',
     brandName: 'Demo Marcas',
     brandDescription: 'Marca de demonstração da fundação ForMarca.',
     address: demoAddress,
@@ -67,9 +80,13 @@ const mockTenantRecords: MockTenantRecord[] = [
     name: MOCK_TENANTS[1].name,
     slug: MOCK_TENANTS[1].slug ?? 'acme',
     document: '12345678000195',
-    status: 'Active',
+    status: 'Onboarding',
     email: 'contato@acmemarcas.com',
     phone: '21977770002',
+    legalRepresentativeName: 'Carlos Lima',
+    legalRepresentativeDocument: '39053344705',
+    quotedAmount: 8500,
+    budgetNotes: 'Registro da marca principal nas classes 25 e 35.',
     brandName: 'Acme',
     brandDescription: 'Produtos e serviços de marca da Acme.',
     address: acmeAddress,
@@ -85,6 +102,10 @@ function toRegistrationDto(record: MockTenantRecord): RegistrationDto {
     phone: record.phone,
     document: record.document,
     address: { ...record.address },
+    legalRepresentativeName: record.legalRepresentativeName,
+    legalRepresentativeDocument: record.legalRepresentativeDocument,
+    quotedAmount: record.quotedAmount,
+    budgetNotes: record.budgetNotes,
     brandName: record.brandName,
     brandDescription: record.brandDescription,
     slug: record.slug,
@@ -134,6 +155,25 @@ function assertUniqueEmail(email: string, exceptId?: string): void {
   }
 }
 
+function applyRegistrationFields(
+  record: MockTenantRecord,
+  body: RegistrationPayload,
+): void {
+  record.name = body.name
+  record.email = body.email
+  record.phone = body.phone
+  record.document = body.document
+  record.legalRepresentativeName = body.legalRepresentativeName
+  record.legalRepresentativeDocument = body.legalRepresentativeDocument
+  record.quotedAmount = body.quotedAmount ?? null
+  record.budgetNotes = body.budgetNotes ?? null
+  record.address = body.address
+}
+
+function isAccessibleStatus(status: MockTenantStatus): boolean {
+  return status === 'Active' || status === 'Onboarding'
+}
+
 export function mockListTenants(): Tenant[] {
   return mockTenantRecords.map(toAdminTenant)
 }
@@ -147,6 +187,10 @@ export function mockListCustomerTenants(): MockCustomerTenantRow[] {
     email: record.email,
     status: record.status,
   }))
+}
+
+export function mockGetTenantRecord(id: string): MockTenantRecord | undefined {
+  return mockTenantRecords.find((item) => item.id === id)
 }
 
 export function mockGetRegistrationById(id: string): RegistrationDto | null {
@@ -165,13 +209,7 @@ export function mockUpdateRegistrationById(
   }
   const body = toRegistrationPayload(payload)
   assertUniqueEmail(body.email, record.id)
-  record.name = body.name
-  record.email = body.email
-  record.phone = body.phone
-  record.document = body.document
-  record.brandName = body.brandName
-  record.brandDescription = body.brandDescription
-  record.address = body.address
+  applyRegistrationFields(record, body)
   return toRegistrationDto(record)
 }
 
@@ -186,8 +224,12 @@ export function mockSubmitRegistration(payload: RegistrationPayload): void {
     status: 'Pending',
     email: body.email,
     phone: body.phone,
-    brandName: body.brandName,
-    brandDescription: body.brandDescription,
+    legalRepresentativeName: body.legalRepresentativeName,
+    legalRepresentativeDocument: body.legalRepresentativeDocument,
+    quotedAmount: body.quotedAmount ?? null,
+    budgetNotes: body.budgetNotes ?? null,
+    brandName: '',
+    brandDescription: '',
     address: body.address,
     createdAt: new Date().toISOString(),
   })
@@ -197,7 +239,7 @@ export function mockGetCurrentRegistration(): RegistrationDto | null {
   const tenantId = tokenStorage.getActiveTenantId()
   if (!tenantId) return null
   const record = mockTenantRecords.find((item) => item.id === tenantId)
-  if (!record || record.status !== 'Active') return null
+  if (!record || !isAccessibleStatus(record.status)) return null
   return toRegistrationDto(record)
 }
 
@@ -209,18 +251,12 @@ export function mockUpdateRegistration(
     throw new ApiError(404, 'No active customer')
   }
   const record = mockTenantRecords.find((item) => item.id === tenantId)
-  if (!record || record.status !== 'Active') {
+  if (!record || !isAccessibleStatus(record.status)) {
     throw new ApiError(404, 'Registration not found')
   }
   const body = toRegistrationPayload(payload)
   assertUniqueEmail(body.email, record.id)
-  record.name = body.name
-  record.email = body.email
-  record.phone = body.phone
-  record.document = body.document
-  record.brandName = body.brandName
-  record.brandDescription = body.brandDescription
-  record.address = body.address
+  applyRegistrationFields(record, body)
   return toRegistrationDto(record)
 }
 
@@ -235,7 +271,21 @@ export function mockApproveTenant(id: string, password: string): void {
   if (record.status !== 'Pending') {
     throw new ApiError(409, 'Customer is not pending')
   }
+  record.status = 'Onboarding'
+  syncMockTenantStatus(id, 'Onboarding')
+}
+
+export function mockActivateTenant(id: string): void {
+  const record = mockTenantRecords.find((item) => item.id === id)
+  if (!record) {
+    throw new ApiError(404, 'Customer not found')
+  }
+  if (record.status === 'Active') return
+  if (record.status !== 'Onboarding') {
+    throw new ApiError(409, 'Customer is not in onboarding')
+  }
   record.status = 'Active'
+  syncMockTenantStatus(id, 'Active')
 }
 
 export function mockRejectTenant(id: string): void {
@@ -247,4 +297,5 @@ export function mockRejectTenant(id: string): void {
     throw new ApiError(409, 'Customer is not pending')
   }
   record.status = 'Inactive'
+  syncMockTenantStatus(id, 'Inactive')
 }

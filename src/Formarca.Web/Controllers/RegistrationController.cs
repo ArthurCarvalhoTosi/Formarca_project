@@ -11,18 +11,33 @@ namespace Formarca.Web.Controllers;
 [ApiController]
 public sealed class RegistrationController(ISender sender) : ControllerBase
 {
-    public sealed record RegistrationRequest(
+    public sealed record SubmitRegistrationRequest(
         string Name,
         string Email,
         string Phone,
         string Document,
         AddressDto Address,
-        string BrandName,
-        string BrandDescription);
+        string? LegalRepresentativeName,
+        string? LegalRepresentativeDocument,
+        decimal? QuotedAmount,
+        string? BudgetNotes,
+        string? BrandName,
+        string? BrandDescription);
+
+    public sealed record UpdateRegistrationRequest(
+        string Name,
+        string Email,
+        string Phone,
+        string Document,
+        AddressDto Address,
+        string? LegalRepresentativeName,
+        string? LegalRepresentativeDocument,
+        decimal? QuotedAmount,
+        string? BudgetNotes);
 
     [AllowAnonymous]
     [HttpPost("api/registrations")]
-    public async Task<IActionResult> Submit([FromBody] RegistrationRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Submit([FromBody] SubmitRegistrationRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(
             new SubmitRegistrationCommand(
@@ -32,7 +47,11 @@ public sealed class RegistrationController(ISender sender) : ControllerBase
                 request.Document,
                 request.Address,
                 request.BrandName,
-                request.BrandDescription),
+                request.BrandDescription,
+                request.LegalRepresentativeName,
+                request.LegalRepresentativeDocument,
+                request.QuotedAmount,
+                request.BudgetNotes),
             cancellationToken);
 
         return StatusCode(StatusCodes.Status201Created, result);
@@ -45,7 +64,7 @@ public sealed class RegistrationController(ISender sender) : ControllerBase
 
     [Authorize(Policy = PermissionCodes.RegistrationsManage)]
     [HttpPut("api/registration")]
-    public async Task<IActionResult> Update([FromBody] RegistrationRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Update([FromBody] UpdateRegistrationRequest request, CancellationToken cancellationToken)
         => Ok(await sender.Send(
             new UpdateRegistrationCommand(
                 request.Name,
@@ -53,8 +72,10 @@ public sealed class RegistrationController(ISender sender) : ControllerBase
                 request.Phone,
                 request.Document,
                 request.Address,
-                request.BrandName,
-                request.BrandDescription),
+                request.LegalRepresentativeName,
+                request.LegalRepresentativeDocument,
+                request.QuotedAmount,
+                request.BudgetNotes),
             cancellationToken));
 
     [Authorize(Policy = PermissionCodes.RegistrationsRead)]
@@ -66,7 +87,7 @@ public sealed class RegistrationController(ISender sender) : ControllerBase
     [HttpPut("api/registration/{tenantId:guid}")]
     public async Task<IActionResult> UpdateByTenantId(
         Guid tenantId,
-        [FromBody] RegistrationRequest request,
+        [FromBody] UpdateRegistrationRequest request,
         CancellationToken cancellationToken)
         => Ok(await sender.Send(
             new UpdateRegistrationByTenantIdCommand(
@@ -76,7 +97,9 @@ public sealed class RegistrationController(ISender sender) : ControllerBase
                 request.Phone,
                 request.Document,
                 request.Address,
-                request.BrandName,
-                request.BrandDescription),
+                request.LegalRepresentativeName,
+                request.LegalRepresentativeDocument,
+                request.QuotedAmount,
+                request.BudgetNotes),
             cancellationToken));
 }

@@ -17,6 +17,10 @@ export function maskPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
+export function maskCpf(value: string): string {
+  return maskTaxId(onlyDigits(value).slice(0, 11))
+}
+
 export function maskTaxId(value: string): string {
   const digits = onlyDigits(value).slice(0, 14)
   if (digits.length <= 11) {

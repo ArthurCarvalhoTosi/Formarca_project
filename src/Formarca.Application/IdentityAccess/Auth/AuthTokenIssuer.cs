@@ -48,13 +48,14 @@ public static class AuthTokenIssuer
 
         if (!includeNonActiveTenants)
         {
-            query = query.Where(x => x.t.Status == TenantStatus.Active);
+            query = query.Where(x =>
+                x.t.Status == TenantStatus.Active || x.t.Status == TenantStatus.Onboarding);
         }
 
         return await query
             .OrderByDescending(x => x.m.IsDefault)
             .ThenBy(x => x.t.Name)
-            .Select(x => new TenantSummaryDto(x.t.Id, x.t.Name, x.t.Slug, x.m.IsDefault))
+            .Select(x => new TenantSummaryDto(x.t.Id, x.t.Name, x.t.Slug, x.m.IsDefault, x.t.Status.ToString()))
             .ToListAsync(cancellationToken);
     }
 
@@ -98,13 +99,26 @@ public static class AuthTokenIssuer
         PermissionCodes.UsersRead, PermissionCodes.UsersManage,
         PermissionCodes.GroupsRead, PermissionCodes.GroupsManage,
         PermissionCodes.ProcessesRead,
-        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage
+        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
+        PermissionCodes.BrandsRead,
+        PermissionCodes.ContractsRead,
+        PermissionCodes.InvoicesRead
     ];
 
     private static readonly string[] ClientUserPermissionCodes =
     [
         PermissionCodes.ProcessesRead,
-        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage
+        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
+        PermissionCodes.BrandsRead,
+        PermissionCodes.ContractsRead,
+        PermissionCodes.InvoicesRead
+    ];
+
+    private static readonly string[] ClientOnboardingPermissionCodes =
+    [
+        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
+        PermissionCodes.ContractsRead, PermissionCodes.ContractsSign,
+        PermissionCodes.InvoicesRead, PermissionCodes.InvoicesPay
     ];
 
     public static async Task EnsureDefaultTenantGroupsAsync(
@@ -131,6 +145,15 @@ public static class AuthTokenIssuer
             DefaultGroupNames.ClientUsers,
             "Client users",
             ClientUserPermissionCodes,
+            permissions,
+            cancellationToken);
+
+        await EnsureGroupWithPermissionsAsync(
+            repository,
+            tenantId,
+            DefaultGroupNames.ClientOnboarding,
+            "Client onboarding",
+            ClientOnboardingPermissionCodes,
             permissions,
             cancellationToken);
     }

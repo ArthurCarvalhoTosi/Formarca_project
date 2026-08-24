@@ -23,7 +23,7 @@ public sealed class ListTenantsQueryHandler(
 
         var query = repository.Query<Tenant>().OrderBy(t => t.Name);
         var total = await query.CountAsync(cancellationToken);
-        var items = await query
+            var items = await query
             .Skip(skip)
             .Take(pageSize)
             .Select(t => new TenantDto(
@@ -33,8 +33,10 @@ public sealed class ListTenantsQueryHandler(
                 t.Email,
                 t.Phone,
                 t.Document,
-                t.BrandName,
-                t.BrandDescription,
+                t.LegalRepresentativeName,
+                t.LegalRepresentativeDocument,
+                t.QuotedAmount,
+                t.BudgetNotes,
                 t.Address == null
                     ? null
                     : new AddressDto(

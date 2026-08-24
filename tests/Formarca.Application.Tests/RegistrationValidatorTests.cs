@@ -53,7 +53,5 @@ public class RegistrationValidatorTests
             "maria@acme.com",
             "11987654321",
             "39053344705",
-            ValidAddress,
-            "Acme",
-            "Widgets");
+            ValidAddress);
 }

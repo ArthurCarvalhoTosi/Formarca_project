@@ -57,7 +57,10 @@ public sealed class LoginCommandHandler(
         if (tenantId is not null)
         {
             var tenantExists = await repository.AnyAsync<Tenant>(
-                t => t.Id == tenantId && !t.IsDeleted && t.Status == TenantStatus.Active, cancellationToken);
+                t => t.Id == tenantId
+                    && !t.IsDeleted
+                    && (t.Status == TenantStatus.Active || t.Status == TenantStatus.Onboarding),
+                cancellationToken);
             if (!tenantExists && !user.IsPlatformAdmin)
             {
                 throw new ForbiddenException("Tenant is not available.");

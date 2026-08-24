@@ -6,7 +6,7 @@ public sealed record AuthTokensDto(
     DateTime AccessTokenExpiresAtUtc,
     Guid? TenantId);
 
-public sealed record TenantSummaryDto(Guid Id, string Name, string Slug, bool IsDefault);
+public sealed record TenantSummaryDto(Guid Id, string Name, string Slug, bool IsDefault, string Status);
 
 public sealed record AuthResultDto(
     AuthTokensDto Tokens,
@@ -42,8 +42,10 @@ public sealed record RegistrationDto(
     string Email,
     string Phone,
     string Document,
-    string BrandName,
-    string BrandDescription,
+    string? LegalRepresentativeName,
+    string? LegalRepresentativeDocument,
+    decimal? QuotedAmount,
+    string? BudgetNotes,
     AddressDto Address,
     string Status,
     DateTime CreatedAtUtc);
@@ -55,8 +57,10 @@ public sealed record TenantDto(
     string? Email,
     string? Phone,
     string? Document,
-    string? BrandName,
-    string? BrandDescription,
+    string? LegalRepresentativeName,
+    string? LegalRepresentativeDocument,
+    decimal? QuotedAmount,
+    string? BudgetNotes,
     AddressDto? Address,
     string Status,
     DateTime CreatedAtUtc);
@@ -77,3 +81,67 @@ public sealed record GroupDto(
     IReadOnlyList<string> PermissionCodes);
 
 public sealed record PermissionDto(Guid Id, string Code, string Name);
+
+public sealed record BrandDto(
+    Guid Id,
+    Guid TenantId,
+    string Name,
+    string ServicesDescription,
+    IReadOnlyList<int> InpiClasses,
+    DateTime CreatedAtUtc);
+
+public sealed record ContractDto(
+    Guid Id,
+    Guid TenantId,
+    Guid BrandId,
+    string Code,
+    string CompanyDocument,
+    string RepresentativeDocument,
+    string BrandName,
+    string Classes,
+    decimal Amount,
+    string Status,
+    DateTime FormarcaSignedAt,
+    DateTime? ClientSignedAt,
+    DateTime GeneratedAtUtc,
+    DateTime? SignedAtUtc,
+    DateTime CreatedAtUtc,
+    string? TenantName = null,
+    decimal? PaidAmount = null,
+    string? PaymentMethod = null,
+    Guid? InvoiceId = null);
+
+public sealed record InvoiceDto(
+    Guid Id,
+    Guid TenantId,
+    Guid ContractId,
+    string? PaymentMethod,
+    int? Installments,
+    decimal ContractAmount,
+    decimal Discount,
+    decimal ExpectedAmount,
+    decimal ReceivedAmount,
+    string Status,
+    DateTime CreatedAtUtc,
+    string? TenantName = null,
+    string? ContractCode = null);
+
+public sealed record InvoiceSettingsDto(
+    Guid Id,
+    IReadOnlyDictionary<string, decimal> InterestRates,
+    string InterestRatesJson,
+    decimal PixDiscount,
+    decimal GeneralDiscount);
+
+public sealed record ProcessDto(
+    Guid Id,
+    Guid TenantId,
+    Guid BrandId,
+    Guid ContractId,
+    string Status,
+    string? ProcessNumber,
+    DateTime CreatedAtUtc,
+    string? BrandName = null,
+    string? ContractCode = null);
+
+public sealed record ContractDocumentFile(string FileName, string ContentType, byte[] Content);

@@ -168,3 +168,43 @@ export async function apiRequest<T>(
 
   return parsed as T
 }
+
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const requestHeaders: Record<string, string> = { Accept: '*/*' }
+  const accessToken = tokenStorage.getAccessToken()
+  if (accessToken) {
+    requestHeaders.Authorization = `Bearer ${accessToken}`
+  }
+  const tenantId = tokenStorage.getActiveTenantId()
+  if (tenantId) {
+    requestHeaders['X-Tenant-Id'] = tenantId
+  }
+
+  const url = path.startsWith('http') ? path : `${env.apiUrl}${path}`
+  const response = await fetch(url, { headers: requestHeaders })
+  const parsed = await parseBody(response.clone())
+
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      errorMessage(parsed, `Erro HTTP ${response.status}`),
+      parsed,
+    )
+  }
+
+  const headerName = response.headers.get('Content-Disposition')
+  const matched = headerName?.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i)
+  const downloadName = matched ? decodeURIComponent(matched[1].replaceAll('"', '')) : filename
+  triggerBlobDownload(await response.blob(), downloadName)
+}

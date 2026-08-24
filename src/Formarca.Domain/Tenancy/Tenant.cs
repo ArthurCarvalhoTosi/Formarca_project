@@ -18,9 +18,13 @@ public class Tenant : Entity, IPlatformEntity
 
     public string? Document { get; private set; }
 
-    public string? BrandName { get; private set; }
+    public string? LegalRepresentativeName { get; private set; }
 
-    public string? BrandDescription { get; private set; }
+    public string? LegalRepresentativeDocument { get; private set; }
+
+    public decimal? QuotedAmount { get; private set; }
+
+    public string? BudgetNotes { get; private set; }
 
     public Address? Address { get; private set; }
 
@@ -46,9 +50,7 @@ public class Tenant : Entity, IPlatformEntity
         string email,
         string phone,
         string document,
-        Address address,
-        string brandName,
-        string brandDescription)
+        Address address)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
@@ -56,8 +58,6 @@ public class Tenant : Entity, IPlatformEntity
         ArgumentException.ThrowIfNullOrWhiteSpace(phone);
         ArgumentException.ThrowIfNullOrWhiteSpace(document);
         ArgumentNullException.ThrowIfNull(address);
-        ArgumentException.ThrowIfNullOrWhiteSpace(brandName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(brandDescription);
 
         return new Tenant
         {
@@ -67,8 +67,6 @@ public class Tenant : Entity, IPlatformEntity
             Phone = BrazilianGeographic.NormalizePhone(phone),
             Document = BrazilianDocuments.DigitsOnly(document),
             Address = address,
-            BrandName = brandName.Trim(),
-            BrandDescription = brandDescription.Trim(),
             Status = TenantStatus.Pending
         };
     }
@@ -88,24 +86,35 @@ public class Tenant : Entity, IPlatformEntity
         string phone,
         string document,
         Address address,
-        string brandName,
-        string brandDescription)
+        string? legalRepresentativeName,
+        string? legalRepresentativeDocument,
+        decimal? quotedAmount,
+        string? budgetNotes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
         ArgumentException.ThrowIfNullOrWhiteSpace(phone);
         ArgumentException.ThrowIfNullOrWhiteSpace(document);
         ArgumentNullException.ThrowIfNull(address);
-        ArgumentException.ThrowIfNullOrWhiteSpace(brandName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(brandDescription);
+
+        if (quotedAmount is < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quotedAmount), "Quoted amount cannot be negative.");
+        }
 
         Name = name.Trim();
         Email = email.Trim().ToLowerInvariant();
         Phone = BrazilianGeographic.NormalizePhone(phone);
         Document = BrazilianDocuments.DigitsOnly(document);
         Address = address;
-        BrandName = brandName.Trim();
-        BrandDescription = brandDescription.Trim();
+        LegalRepresentativeName = string.IsNullOrWhiteSpace(legalRepresentativeName)
+            ? null
+            : legalRepresentativeName.Trim();
+        LegalRepresentativeDocument = string.IsNullOrWhiteSpace(legalRepresentativeDocument)
+            ? null
+            : BrazilianDocuments.DigitsOnly(legalRepresentativeDocument);
+        QuotedAmount = quotedAmount;
+        BudgetNotes = string.IsNullOrWhiteSpace(budgetNotes) ? null : budgetNotes.Trim();
         MarkUpdated();
     }
 
@@ -114,6 +123,17 @@ public class Tenant : Entity, IPlatformEntity
         if (Status != TenantStatus.Pending)
         {
             throw new InvalidOperationException("Only pending tenants can be approved.");
+        }
+
+        Status = TenantStatus.Onboarding;
+        MarkUpdated();
+    }
+
+    public void ActivateAfterPayment()
+    {
+        if (Status != TenantStatus.Onboarding)
+        {
+            throw new InvalidOperationException("Only onboarding tenants can be activated after payment.");
         }
 
         Status = TenantStatus.Active;

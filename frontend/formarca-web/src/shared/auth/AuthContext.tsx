@@ -10,12 +10,7 @@ import {
 import { authApi } from '@/features/auth/api'
 import { setUnauthorizedHandler } from '@/shared/api/client'
 import { env } from '@/shared/config/env'
-import {
-  isMockAccessToken,
-  MOCK_TENANTS,
-  MOCK_USER,
-  mockLogin,
-} from '@/shared/auth/mockAuth'
+import { getMockSessionByToken, mockLogin } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
 import type {
   AuthUser,
@@ -30,7 +25,9 @@ type AuthContextValue = {
   user: AuthUser | null
   tenants: TenantSummary[]
   activeTenantId: string | null
+  activeTenant: TenantSummary | null
   isPlatformAdmin: boolean
+  isOnboardingLimited: boolean
   login: (payload: LoginRequest) => Promise<void>
   logout: () => Promise<void>
   switchTenant: (tenantId: string) => Promise<void>
@@ -98,16 +95,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return
     }
 
-    if (env.mockAuth && isMockAccessToken(accessToken)) {
-      applySession({
-        user: MOCK_USER,
-        tenants: MOCK_TENANTS,
-        activeTenantId: tokenStorage.getActiveTenantId(),
-      })
-      return
-    }
-
     if (env.mockAuth) {
+      const session = getMockSessionByToken(accessToken)
+      if (session) {
+        applySession({
+          user: session.user,
+          tenants: session.tenants,
+          activeTenantId: tokenStorage.getActiveTenantId(),
+        })
+        return
+      }
       clearSession()
       return
     }
@@ -166,9 +163,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const switchTenant = useCallback(
     async (tenantId: string) => {
       if (env.mockAuth) {
+        const session = getMockSessionByToken(tokenStorage.getAccessToken())
+        const nextUser = session?.user ?? user
+        if (!nextUser) return
         applySession({
-          user: user ?? MOCK_USER,
-          tenants,
+          user: nextUser,
+          tenants: session?.tenants ?? tenants,
           activeTenantId: tenantId,
         })
         return
@@ -186,13 +186,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [applySession, tenants, user],
   )
 
+  const isPlatformAdmin = user?.platformRole === 'PlatformAdmin'
+  const activeTenant = tenants.find((tenant) => tenant.id === activeTenantId) ?? null
+  const isOnboardingLimited =
+    activeTenant?.status === 'Onboarding' && !isPlatformAdmin
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
       user,
       tenants,
       activeTenantId,
-      isPlatformAdmin: user?.platformRole === 'PlatformAdmin',
+      activeTenant,
+      isPlatformAdmin,
+      isOnboardingLimited,
       login,
       logout,
       switchTenant,
@@ -203,6 +210,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       tenants,
       activeTenantId,
+      activeTenant,
+      isPlatformAdmin,
+      isOnboardingLimited,
       login,
       logout,
       switchTenant,

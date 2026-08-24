@@ -1,13 +1,11 @@
-using System.Linq.Expressions;
 using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Application.Tenancy.Commands;
 using Formarca.Application.Tenancy.Queries;
-using Formarca.Domain.Common;
+using Formarca.Domain.Brands;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Domain.Tenancy;
-using Microsoft.EntityFrameworkCore.Query;
 
 namespace Formarca.Application.Tests;
 
@@ -28,6 +26,27 @@ public class RegistrationHandlerTests
         var tenant = repository.Query<Tenant>().Single();
         Assert.Equal(TenantStatus.Pending, tenant.Status);
         Assert.Equal("maria@acme.com", tenant.Email);
+        Assert.Equal("João Silva", tenant.LegalRepresentativeName);
+        Assert.Equal("39053344705", tenant.LegalRepresentativeDocument);
+        Assert.Equal(1500m, tenant.QuotedAmount);
+        Assert.False(repository.Query<Brand>().Any());
+    }
+
+    [Fact]
+    public async Task Submit_Creates_Brand_When_Brand_Fields_Are_Provided()
+    {
+        var repository = new InMemoryRepository();
+        var identity = new FakeIdentityService();
+        var handler = new SubmitRegistrationCommandHandler(repository, identity, new FakeTenantContext());
+
+        await handler.Handle(
+            ValidSubmit() with { BrandName = "Acme", BrandDescription = "Widgets" },
+            CancellationToken.None);
+
+        var tenant = repository.Query<Tenant>().Single();
+        var brand = repository.Query<Brand>().Single();
+        Assert.Equal(tenant.Id, brand.TenantId);
+        Assert.Equal("Acme", brand.Name);
     }
 
     [Fact]
@@ -52,19 +71,17 @@ public class RegistrationHandlerTests
         Assert.Equal(2, tenants.Count);
         Assert.All(tenants, tenant => Assert.Equal("39053344705", tenant.Document));
         Assert.Equal(2, tenants.Select(t => t.Slug).Distinct().Count());
+        Assert.Equal(1, repository.Query<Brand>().Count());
     }
 
     [Fact]
-    public async Task Approve_Creates_User_And_Activates_Tenant()
+    public async Task Approve_Creates_User_And_Puts_Tenant_Onboarding()
     {
         var repository = new InMemoryRepository();
-        repository.Add(Permission.Create(PermissionCodes.RegistrationsRead, "Read registration"));
-        repository.Add(Permission.Create(PermissionCodes.RegistrationsManage, "Manage registration"));
-        repository.Add(Permission.Create(PermissionCodes.ProcessesRead, "Read processes"));
-        repository.Add(Permission.Create(PermissionCodes.UsersRead, "Read users"));
-        repository.Add(Permission.Create(PermissionCodes.UsersManage, "Manage users"));
-        repository.Add(Permission.Create(PermissionCodes.GroupsRead, "Read groups"));
-        repository.Add(Permission.Create(PermissionCodes.GroupsManage, "Manage groups"));
+        foreach (var (code, name) in PermissionCodes.Catalog)
+        {
+            repository.Add(Permission.Create(code, name));
+        }
 
         var tenant = Tenant.Register(
             "Acme Ltd",
@@ -72,9 +89,7 @@ public class RegistrationHandlerTests
             "maria@acme.com",
             "11987654321",
             "39053344705",
-            Address.Create("01310100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"),
-            "Acme",
-            "Widgets");
+            Address.Create("01310100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"));
         repository.Add(tenant);
 
         var identity = new FakeIdentityService();
@@ -82,20 +97,35 @@ public class RegistrationHandlerTests
 
         var result = await handler.Handle(new ApproveTenantCommand(tenant.Id, "Password1"), CancellationToken.None);
 
-        Assert.Equal(TenantStatus.Active.ToString(), result.Status);
+        Assert.Equal(TenantStatus.Onboarding.ToString(), result.Status);
         Assert.Single(identity.CreatedUsers);
         Assert.Equal("maria@acme.com", identity.CreatedUsers[0].Email);
         Assert.Equal("Password1", identity.CreatedUsers[0].Password);
         Assert.True(repository.Query<UserTenantMembership>().Any(m => m.TenantId == tenant.Id && m.UserId == identity.NextUserId));
         Assert.True(repository.Query<UserGroupMembership>().Any(m => m.TenantId == tenant.Id && m.GroupId != Guid.Empty));
-        Assert.Equal(TenantStatus.Active, repository.Query<Tenant>().Single().Status);
-        Assert.Contains(repository.Query<Group>(), g => g.Name == DefaultGroupNames.TenantAdmins);
+        Assert.Equal(TenantStatus.Onboarding, repository.Query<Tenant>().Single().Status);
+        Assert.Contains(repository.Query<Group>(), g => g.Name == DefaultGroupNames.ClientOnboarding);
+        var onboarding = repository.Query<Group>().Single(g => g.Name == DefaultGroupNames.ClientOnboarding);
+        Assert.Contains(repository.Query<UserGroupMembership>(), m => m.GroupId == onboarding.Id);
+        var onboardingPermissionIds = repository.Query<GroupPermission>()
+            .Where(gp => gp.GroupId == onboarding.Id && !gp.IsDeleted)
+            .Select(gp => gp.PermissionId)
+            .ToHashSet();
+        var codes = repository.Query<Permission>()
+            .Where(p => onboardingPermissionIds.Contains(p.Id))
+            .Select(p => p.Code)
+            .ToHashSet();
+        Assert.Contains(PermissionCodes.ContractsSign, codes);
+        Assert.Contains(PermissionCodes.InvoicesPay, codes);
+        Assert.DoesNotContain(
+            repository.Query<UserGroupMembership>(),
+            m => repository.Query<Group>().Any(g => g.Id == m.GroupId && g.Name == DefaultGroupNames.TenantAdmins));
     }
 
     [Fact]
     public async Task GetByTenantId_Allows_Own_Tenant()
     {
-        var (repository, own, _) = SeedTwoActiveTenants();
+        var (repository, own, _) = SeedTwoOnboardingTenants();
         var handler = new GetRegistrationByTenantIdQueryHandler(
             OwnTenantUser(own.Id), repository, new FakeTenantContext());
 
@@ -108,7 +138,7 @@ public class RegistrationHandlerTests
     [Fact]
     public async Task GetByTenantId_Forbids_Other_Tenant()
     {
-        var (repository, own, other) = SeedTwoActiveTenants();
+        var (repository, own, other) = SeedTwoOnboardingTenants();
         var handler = new GetRegistrationByTenantIdQueryHandler(
             OwnTenantUser(own.Id), repository, new FakeTenantContext());
 
@@ -121,7 +151,7 @@ public class RegistrationHandlerTests
     [Fact]
     public async Task GetByTenantId_Allows_PlatformAdmin_Other_Tenant()
     {
-        var (repository, _, other) = SeedTwoActiveTenants();
+        var (repository, _, other) = SeedTwoOnboardingTenants();
         var handler = new GetRegistrationByTenantIdQueryHandler(
             PlatformAdminUser(), repository, new FakeTenantContext());
 
@@ -134,7 +164,7 @@ public class RegistrationHandlerTests
     [Fact]
     public async Task UpdateByTenantId_Allows_Own_Tenant()
     {
-        var (repository, own, _) = SeedTwoActiveTenants();
+        var (repository, own, _) = SeedTwoOnboardingTenants();
         var handler = new UpdateRegistrationByTenantIdCommandHandler(
             OwnTenantUser(own.Id), repository, new FakeIdentityService(), new FakeTenantContext());
 
@@ -143,12 +173,13 @@ public class RegistrationHandlerTests
         Assert.Equal("Updated Ltd", result.Name);
         Assert.Equal("updated@acme.com", result.Email);
         Assert.Equal("Updated Ltd", repository.Query<Tenant>().Single(t => t.Id == own.Id).Name);
+        Assert.Equal("João Silva", result.LegalRepresentativeName);
     }
 
     [Fact]
     public async Task UpdateByTenantId_Forbids_Other_Tenant()
     {
-        var (repository, own, other) = SeedTwoActiveTenants();
+        var (repository, own, other) = SeedTwoOnboardingTenants();
         var handler = new UpdateRegistrationByTenantIdCommandHandler(
             OwnTenantUser(own.Id), repository, new FakeIdentityService(), new FakeTenantContext());
 
@@ -162,7 +193,7 @@ public class RegistrationHandlerTests
     [Fact]
     public async Task UpdateByTenantId_Allows_PlatformAdmin_Other_Tenant()
     {
-        var (repository, _, other) = SeedTwoActiveTenants();
+        var (repository, _, other) = SeedTwoOnboardingTenants();
         var handler = new UpdateRegistrationByTenantIdCommandHandler(
             PlatformAdminUser(), repository, new FakeIdentityService(), new FakeTenantContext());
 
@@ -174,7 +205,7 @@ public class RegistrationHandlerTests
         Assert.Equal("admin-edit@acme.com", result.Email);
     }
 
-    private static (IGenericRepository Repository, Tenant Own, Tenant Other) SeedTwoActiveTenants()
+    private static (IGenericRepository Repository, Tenant Own, Tenant Other) SeedTwoOnboardingTenants()
     {
         var repository = new InMemoryRepository();
         var own = RegisterApproved("Acme Ltd", "acme-ltd", "maria@acme.com", "39053344705");
@@ -192,9 +223,7 @@ public class RegistrationHandlerTests
             email,
             "11987654321",
             document,
-            Address.Create("01310100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"),
-            "Acme",
-            "Widgets");
+            Address.Create("01310100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"));
         tenant.Approve();
         return tenant;
     }
@@ -217,8 +246,10 @@ public class RegistrationHandlerTests
             "11987654321",
             document,
             new AddressDto("01310100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"),
-            "Acme",
-            "Widgets");
+            "João Silva",
+            "39053344705",
+            1500m,
+            "Initial budget");
 
     private static SubmitRegistrationCommand ValidSubmit() =>
         new(
@@ -227,209 +258,10 @@ public class RegistrationHandlerTests
             "11987654321",
             "39053344705",
             new AddressDto("01310100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"),
-            "Acme",
-            "Widgets");
-}
-
-file sealed class FakeCurrentUser : ICurrentUser
-{
-    public Guid? UserId { get; init; } = Guid.NewGuid();
-
-    public string? Email { get; init; } = "user@example.com";
-
-    public Guid? TenantId { get; init; }
-
-    public bool IsPlatformAdmin { get; init; }
-
-    public bool IsAuthenticated { get; init; } = true;
-
-    public IReadOnlyCollection<string> Permissions { get; init; } = [];
-}
-
-file sealed class FakeTenantContext : ITenantContext
-{
-    public Guid? TenantId { get; private set; }
-
-    public bool IsPlatformAdmin { get; private set; }
-
-    public bool IgnoreTenantFilters { get; private set; }
-
-    public bool IgnoreSoftDeleteFilters { get; private set; }
-
-    public void SetTenant(Guid? tenantId, bool isPlatformAdmin = false)
-    {
-        TenantId = tenantId;
-        IsPlatformAdmin = isPlatformAdmin;
-    }
-
-    public void SetIgnoreTenantFilters(bool ignore) => IgnoreTenantFilters = ignore;
-
-    public void SetIgnoreSoftDeleteFilters(bool ignore) => IgnoreSoftDeleteFilters = ignore;
-}
-
-file sealed class FakeIdentityService : IIdentityService
-{
-    public Guid NextUserId { get; } = Guid.NewGuid();
-
-    public List<(string Email, string Password, string? DisplayName)> CreatedUsers { get; } = [];
-
-    public Task<IdentityUserInfo?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
-        => Task.FromResult<IdentityUserInfo?>(null);
-
-    public Task<IdentityUserInfo?> FindByIdAsync(Guid userId, CancellationToken cancellationToken = default)
-        => Task.FromResult<IdentityUserInfo?>(null);
-
-    public Task<bool> CheckPasswordAsync(Guid userId, string password, CancellationToken cancellationToken = default)
-        => Task.FromResult(false);
-
-    public Task<(bool Succeeded, Guid? UserId, IReadOnlyList<string> Errors)> CreateUserAsync(
-        string email,
-        string password,
-        string? displayName,
-        bool isPlatformAdmin,
-        CancellationToken cancellationToken = default)
-    {
-        CreatedUsers.Add((email, password, displayName));
-        return Task.FromResult<(bool, Guid?, IReadOnlyList<string>)>((true, NextUserId, []));
-    }
-
-    public Task<(bool Succeeded, IReadOnlyList<string> Errors)> UpdateUserAsync(
-        Guid userId,
-        string? displayName,
-        bool? isActive,
-        CancellationToken cancellationToken = default)
-        => Task.FromResult<(bool, IReadOnlyList<string>)>((true, []));
-
-    public Task<(IReadOnlyList<IdentityUserInfo> Items, int TotalCount)> ListUsersAsync(
-        int skip,
-        int take,
-        CancellationToken cancellationToken = default)
-        => Task.FromResult<(IReadOnlyList<IdentityUserInfo>, int)>(([], 0));
-}
-
-file sealed class InMemoryRepository : IGenericRepository
-{
-    private readonly Dictionary<Type, List<Entity>> _sets = [];
-
-    private List<Entity> Bucket<T>()
-        where T : Entity
-    {
-        if (!_sets.TryGetValue(typeof(T), out var list))
-        {
-            list = [];
-            _sets[typeof(T)] = list;
-        }
-
-        return list;
-    }
-
-    public IQueryable<T> Query<T>(bool asNoTracking = true)
-        where T : Entity
-        => new TestAsyncEnumerable<T>(Bucket<T>().Cast<T>());
-
-    public Task<T?> FirstOrDefaultAsync<T>(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
-        where T : Entity
-        => Task.FromResult(Bucket<T>().Cast<T>().AsQueryable().FirstOrDefault(predicate));
-
-    public Task<bool> AnyAsync<T>(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
-        where T : Entity
-        => Task.FromResult(Bucket<T>().Cast<T>().AsQueryable().Any(predicate));
-
-    public void Add<T>(T entity)
-        where T : Entity
-        => Bucket<T>().Add(entity);
-
-    public Task<T?> GetByIdAsync<T>(Guid id, CancellationToken cancellationToken = default)
-        where T : Entity
-        => Task.FromResult(Bucket<T>().Cast<T>().FirstOrDefault(e => e.Id == id));
-
-    public Task InsertAsync<T>(T entity, CancellationToken cancellationToken = default)
-        where T : Entity
-    {
-        Add(entity);
-        return Task.CompletedTask;
-    }
-
-    public Task UpsertAsync<T>(T entity, CancellationToken cancellationToken = default)
-        where T : Entity => throw new NotSupportedException();
-
-    public Task DeleteAsync<T>(T entity, CancellationToken cancellationToken = default)
-        where T : Entity => throw new NotSupportedException();
-
-    public Task BulkInsertAsync<T>(IList<T> entities, CancellationToken cancellationToken = default)
-        where T : Entity => throw new NotSupportedException();
-
-    public Task BulkInsertOrUpdateAsync<T>(IList<T> entities, CancellationToken cancellationToken = default)
-        where T : Entity => throw new NotSupportedException();
-
-    public Task BulkUpsertAsync<T>(IList<T> entities, CancellationToken cancellationToken = default)
-        where T : Entity => throw new NotSupportedException();
-
-    public Task BulkUpdateAsync<T>(IList<T> entities, CancellationToken cancellationToken = default)
-        where T : Entity => throw new NotSupportedException();
-
-    public Task BulkDeleteAsync<T>(IList<T> entities, CancellationToken cancellationToken = default)
-        where T : Entity => throw new NotSupportedException();
-
-    public Task<int> CommitAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
-}
-
-file sealed class TestAsyncEnumerable<T> : EnumerableQuery<T>, IAsyncEnumerable<T>, IQueryable<T>
-{
-    public TestAsyncEnumerable(IEnumerable<T> enumerable)
-        : base(enumerable)
-    {
-    }
-
-    public TestAsyncEnumerable(Expression expression)
-        : base(expression)
-    {
-    }
-
-    IQueryProvider IQueryable.Provider => new TestAsyncQueryProvider<T>(this);
-
-    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-        => new TestAsyncEnumerator<T>(this.AsEnumerable().GetEnumerator());
-}
-
-file sealed class TestAsyncQueryProvider<T> : IAsyncQueryProvider
-{
-    private readonly IQueryProvider _inner;
-
-    public TestAsyncQueryProvider(IQueryProvider inner) => _inner = inner;
-
-    public IQueryable CreateQuery(Expression expression) => new TestAsyncEnumerable<T>(expression);
-
-    public IQueryable<TElement> CreateQuery<TElement>(Expression expression) =>
-        new TestAsyncEnumerable<TElement>(expression);
-
-    public object? Execute(Expression expression) => _inner.Execute(expression);
-
-    public TResult Execute<TResult>(Expression expression) => _inner.Execute<TResult>(expression);
-
-    public TResult ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken = default)
-    {
-        var resultType = typeof(TResult).GetGenericArguments()[0];
-        var execute = typeof(IQueryProvider)
-            .GetMethod(nameof(IQueryProvider.Execute), 1, [typeof(Expression)])!
-            .MakeGenericMethod(resultType)
-            .Invoke(_inner, [expression]);
-
-        return (TResult)typeof(Task).GetMethod(nameof(Task.FromResult))!
-            .MakeGenericMethod(resultType)
-            .Invoke(null, [execute])!;
-    }
-}
-
-file sealed class TestAsyncEnumerator<T>(IEnumerator<T> inner) : IAsyncEnumerator<T>
-{
-    public T Current => inner.Current;
-
-    public ValueTask DisposeAsync()
-    {
-        inner.Dispose();
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask<bool> MoveNextAsync() => new(inner.MoveNext());
+            BrandName: null,
+            BrandDescription: null,
+            LegalRepresentativeName: "João Silva",
+            LegalRepresentativeDocument: "39053344705",
+            QuotedAmount: 1500m,
+            BudgetNotes: "Initial budget");
 }

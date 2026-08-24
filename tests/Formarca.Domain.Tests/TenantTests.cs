@@ -24,18 +24,35 @@ public class TenantTests
         Assert.Equal("maria@acme.com", tenant.Email);
         Assert.Equal("11987654321", tenant.Phone);
         Assert.Equal("39053344705", tenant.Document);
-        Assert.Equal("Acme", tenant.BrandName);
         Assert.NotNull(tenant.Address);
         Assert.Equal("SP", tenant.Address.State);
         Assert.Equal("01310100", tenant.Address.ZipCode);
     }
 
     [Fact]
-    public void Approve_Sets_Active()
+    public void Approve_Sets_Onboarding()
     {
         var tenant = RegisterSample();
         tenant.Approve();
+        Assert.Equal(TenantStatus.Onboarding, tenant.Status);
+    }
+
+    [Fact]
+    public void ActivateAfterPayment_Sets_Active()
+    {
+        var tenant = RegisterSample();
+        tenant.Approve();
+        tenant.ActivateAfterPayment();
         Assert.Equal(TenantStatus.Active, tenant.Status);
+    }
+
+    [Fact]
+    public void ActivateAfterPayment_Throws_When_Already_Active()
+    {
+        var tenant = RegisterSample();
+        tenant.Approve();
+        tenant.ActivateAfterPayment();
+        Assert.Throws<InvalidOperationException>(tenant.ActivateAfterPayment);
     }
 
     [Fact]
@@ -54,7 +71,7 @@ public class TenantTests
     }
 
     [Fact]
-    public void UpdateRegistration_Replaces_Contact_And_Address()
+    public void UpdateRegistration_Replaces_Contact_And_Commercial_Fields()
     {
         var tenant = RegisterSample();
         tenant.Approve();
@@ -65,27 +82,30 @@ public class TenantTests
             "1134567890",
             "11222333000181",
             Address.Create("01310-100", "Av Paulista", "1000", "cj 10", "Bela Vista", "São Paulo", "sp"),
-            "New Brand",
-            "New description");
+            "Maria Souza",
+            "390.533.447-05",
+            2500m,
+            "Notes");
 
         Assert.Equal("New Name", tenant.Name);
         Assert.Equal("new@acme.com", tenant.Email);
         Assert.Equal("1134567890", tenant.Phone);
         Assert.Equal("11222333000181", tenant.Document);
-        Assert.Equal("New Brand", tenant.BrandName);
+        Assert.Equal("Maria Souza", tenant.LegalRepresentativeName);
+        Assert.Equal("39053344705", tenant.LegalRepresentativeDocument);
+        Assert.Equal(2500m, tenant.QuotedAmount);
+        Assert.Equal("Notes", tenant.BudgetNotes);
         Assert.Equal("SP", tenant.Address!.State);
-        Assert.Equal(TenantStatus.Active, tenant.Status);
+        Assert.Equal(TenantStatus.Onboarding, tenant.Status);
         Assert.Equal("acme-ltd", tenant.Slug);
     }
 
-    private static Tenant RegisterSample() =>
+    internal static Tenant RegisterSample() =>
         Tenant.Register(
             "Acme Ltd",
             "acme-ltd",
             "Maria@Acme.com",
             "(11) 98765-4321",
             "390.533.447-05",
-            Address.Create("01310-100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"),
-            "Acme",
-            "Widgets");
+            Address.Create("01310-100", "Av Paulista", "100", null, "Bela Vista", "São Paulo", "SP"));
 }

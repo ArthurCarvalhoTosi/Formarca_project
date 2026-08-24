@@ -16,7 +16,7 @@ export function CustomerFormPage() {
   const { t } = useI18n()
   const { message } = App.useApp()
   const navigate = useNavigate()
-  const { activeTenantId } = useAuth()
+  const { activeTenantId, isPlatformAdmin } = useAuth()
   const queryClient = useQueryClient()
 
   const query = useQuery({
@@ -85,6 +85,15 @@ export function CustomerFormPage() {
       <Typography.Title level={3} style={{ marginTop: 0 }}>
         {isNew ? t('customers.new') : t('registration.panelTitle')}
       </Typography.Title>
+      {!isNew && isPlatformAdmin ? (
+        <Button
+          type="primary"
+          onClick={() => navigate(`/marcas/novo?tenantId=${id}`)}
+          style={{ marginBottom: 16 }}
+        >
+          {t('brands.new')}
+        </Button>
+      ) : null}
       {!isNew ? (
         <Typography.Paragraph type="secondary">
           {t('registration.panelDescription')}

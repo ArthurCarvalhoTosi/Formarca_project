@@ -48,7 +48,16 @@ public static class AuthorizationExtensions
             .AddPolicy(PermissionCodes.GroupsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.GroupsRead)))
             .AddPolicy(PermissionCodes.GroupsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.GroupsManage)))
             .AddPolicy(PermissionCodes.RegistrationsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.RegistrationsRead)))
-            .AddPolicy(PermissionCodes.RegistrationsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.RegistrationsManage)));
+            .AddPolicy(PermissionCodes.RegistrationsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.RegistrationsManage)))
+            .AddPolicy(PermissionCodes.ProcessesRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.ProcessesRead)))
+            .AddPolicy(PermissionCodes.BrandsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.BrandsRead)))
+            .AddPolicy(PermissionCodes.BrandsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.BrandsManage)))
+            .AddPolicy(PermissionCodes.ContractsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.ContractsRead)))
+            .AddPolicy(PermissionCodes.ContractsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.ContractsManage)))
+            .AddPolicy(PermissionCodes.ContractsSign, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.ContractsSign)))
+            .AddPolicy(PermissionCodes.InvoicesRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.InvoicesRead)))
+            .AddPolicy(PermissionCodes.InvoicesManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.InvoicesManage)))
+            .AddPolicy(PermissionCodes.InvoicesPay, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.InvoicesPay)));
 
         return services;
     }

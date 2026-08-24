@@ -14,6 +14,7 @@ export function AdminLayout() {
     { key: 'tenants', label: t('admin.tenants') },
     { key: 'users', label: t('admin.users') },
     { key: 'groups', label: t('admin.groups') },
+    { key: 'invoice-settings', label: t('admin.invoiceSettings') },
   ]
 
   return (

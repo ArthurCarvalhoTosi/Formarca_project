@@ -15,8 +15,12 @@ export type RegistrationDto = {
   phone: string
   document: string
   address: AddressDto
-  brandName: string
-  brandDescription: string
+  legalRepresentativeName?: string | null
+  legalRepresentativeDocument?: string | null
+  quotedAmount?: number | null
+  budgetNotes?: string | null
+  brandName?: string | null
+  brandDescription?: string | null
   slug?: string
   status?: string
 }
@@ -27,8 +31,10 @@ export type RegistrationPayload = {
   phone: string
   document: string
   address: AddressDto
-  brandName: string
-  brandDescription: string
+  legalRepresentativeName: string
+  legalRepresentativeDocument: string
+  quotedAmount?: number | null
+  budgetNotes?: string | null
 }
 
 export type ApproveTenantRequest = {

@@ -27,7 +27,7 @@ public sealed class GetCurrentRegistrationQueryHandler(
             t => t.Id == currentUser.TenantId && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
-        if (tenant.Status != TenantStatus.Active && !currentUser.IsPlatformAdmin)
+        if (!tenant.Status.AllowsClientAccess() && !currentUser.IsPlatformAdmin)
         {
             throw new ForbiddenException("Tenant is not available.");
         }
@@ -53,7 +53,7 @@ public sealed class GetRegistrationByTenantIdQueryHandler(
             t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
-        if (tenant.Status != TenantStatus.Active && !currentUser.IsPlatformAdmin)
+        if (!tenant.Status.AllowsClientAccess() && !currentUser.IsPlatformAdmin)
         {
             throw new ForbiddenException("Tenant is not available.");
         }

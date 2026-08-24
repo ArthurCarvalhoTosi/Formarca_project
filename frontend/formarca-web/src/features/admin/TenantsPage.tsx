@@ -11,6 +11,8 @@ function statusColor(status?: string) {
   switch (status) {
     case 'Pending':
       return 'warning'
+    case 'Onboarding':
+      return 'processing'
     case 'Active':
       return 'success'
     case 'Inactive':

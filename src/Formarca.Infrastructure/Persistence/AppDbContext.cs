@@ -2,14 +2,18 @@ using System.Reflection;
 using System.Text.Json;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Domain.Auditing;
+using Formarca.Domain.Brands;
 using Formarca.Domain.Common;
+using Formarca.Domain.Contracts;
 using Formarca.Domain.IdentityAccess;
+using Formarca.Domain.Invoices;
 using Formarca.Domain.PlatformContent;
 using Formarca.Domain.Tenancy;
 using Formarca.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using ProcessEntity = Formarca.Domain.Processes.Process;
 
 namespace Formarca.Infrastructure.Persistence;
 
@@ -59,6 +63,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<PlatformNotice> PlatformNotices => Set<PlatformNotice>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    public DbSet<Brand> Brands => Set<Brand>();
+
+    public DbSet<Contract> Contracts => Set<Contract>();
+
+    public DbSet<InvoiceSettings> InvoiceSettings => Set<InvoiceSettings>();
+
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+
+    public DbSet<ProcessEntity> Processes => Set<ProcessEntity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

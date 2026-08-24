@@ -15,10 +15,17 @@ public interface IRegistrationFields
     string Document { get; }
 
     AddressDto Address { get; }
+}
 
-    string BrandName { get; }
+public interface IRegistrationCommercialFields : IRegistrationFields
+{
+    string? LegalRepresentativeName { get; }
 
-    string BrandDescription { get; }
+    string? LegalRepresentativeDocument { get; }
+
+    decimal? QuotedAmount { get; }
+
+    string? BudgetNotes { get; }
 }
 
 public static class RegistrationValidationRules
@@ -36,8 +43,6 @@ public static class RegistrationValidationRules
             .NotEmpty()
             .Must(BrazilianDocuments.IsValidCpfOrCnpj)
             .WithMessage("Document must be a valid CPF (11 digits) or CNPJ (14 digits).");
-        validator.RuleFor(x => x.BrandName).NotEmpty().MaximumLength(200);
-        validator.RuleFor(x => x.BrandDescription).NotEmpty().MaximumLength(4000);
         validator.RuleFor(x => x.Address).NotNull();
         validator.When(x => x.Address is not null, () =>
         {
@@ -55,5 +60,19 @@ public static class RegistrationValidationRules
                 .Must(BrazilianGeographic.IsValidState)
                 .WithMessage("State must be a valid Brazilian UF.");
         });
+    }
+
+    public static void ApplyCommercial<T>(AbstractValidator<T> validator)
+        where T : IRegistrationCommercialFields
+    {
+        Apply(validator);
+        validator.RuleFor(x => x.LegalRepresentativeName).MaximumLength(200);
+        validator.RuleFor(x => x.LegalRepresentativeDocument)
+            .Must(value => string.IsNullOrWhiteSpace(value) || BrazilianDocuments.IsValidCpf(value))
+            .WithMessage("Legal representative document must be a valid CPF.");
+        validator.RuleFor(x => x.QuotedAmount)
+            .GreaterThanOrEqualTo(0)
+            .When(x => x.QuotedAmount.HasValue);
+        validator.RuleFor(x => x.BudgetNotes).MaximumLength(4000);
     }
 }

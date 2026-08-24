@@ -49,12 +49,22 @@ export type Dictionary = {
     actions: string
     error: string
     success: string
+    search: string
+    filters: string
+    all: string
+    download: string
+    create: string
+    edit: string
+    delete: string
+    view: string
+    confirmDelete: string
   }
   validation: {
     required: string
     email: string
     phone: string
     taxId: string
+    cpf: string
     zipCode: string
     uf: string
     passwordMin: string
@@ -70,6 +80,8 @@ export type Dictionary = {
     contracts: string
     registration: string
     customers: string
+    brands: string
+    invoices: string
     information: string
     admin: string
   }
@@ -85,6 +97,7 @@ export type Dictionary = {
     apiUnreachable: string
     mockBanner: string
     mockHint: string
+    mockClientHint: string
     accessProblems: string
     back: string
     registerLink: string
@@ -162,12 +175,26 @@ export type Dictionary = {
     rejectConfirmContent: string
     rejectSuccess: string
     rejectFailed: string
+    invoiceSettings: string
+    invoiceSettingsTitle: string
+    invoiceSettingsDescription: string
+    invoiceSettingsSaved: string
+    invoiceSettingsLoadError: string
+    pixDiscount: string
+    generalDiscount: string
+    cardCashInterest: string
+    interestN: string
+  }
+  onboarding: {
+    bannerTitle: string
+    bannerDescription: string
   }
   status: {
     Pending: string
     Active: string
     Inactive: string
     Suspended: string
+    Onboarding: string
   }
   registration: {
     publicTitle: string
@@ -185,7 +212,7 @@ export type Dictionary = {
     sections: {
       personal: string
       address: string
-      brand: string
+      commercial: string
     }
     fields: {
       name: string
@@ -199,8 +226,10 @@ export type Dictionary = {
       neighborhood: string
       city: string
       state: string
-      brandName: string
-      brandDescription: string
+      legalRepresentativeName: string
+      legalRepresentativeDocument: string
+      quotedAmount: string
+      budgetNotes: string
     }
     placeholders: {
       name: string
@@ -213,8 +242,10 @@ export type Dictionary = {
       complement: string
       neighborhood: string
       city: string
-      brandName: string
-      brandDescription: string
+      legalRepresentativeName: string
+      legalRepresentativeDocument: string
+      quotedAmount: string
+      budgetNotes: string
     }
     viaCepFailed: string
     errors: {
@@ -240,9 +271,160 @@ export type Dictionary = {
     colStatus: string
     mockHint: string
   }
+  brands: {
+    title: string
+    description: string
+    new: string
+    empty: string
+    loading: string
+    loadError: string
+    unavailable: string
+    saveSuccess: string
+    saveFailed: string
+    deleteSuccess: string
+    deleteFailed: string
+    deleteConfirmTitle: string
+    deleteConfirmContent: string
+    colName: string
+    colTenant: string
+    colClasses: string
+    colDescription: string
+    searchPlaceholder: string
+    filterClass: string
+    filterTenant: string
+    formCreateTitle: string
+    formEditTitle: string
+    preIssue: string
+    preIssueSuccess: string
+    fields: {
+      name: string
+      servicesDescription: string
+      inpiClasses: string
+      tenant: string
+    }
+    placeholders: {
+      name: string
+      servicesDescription: string
+    }
+  }
   contracts: {
     pageTitle: string
+    description: string
     emptyDescription: string
+    loading: string
+    loadError: string
+    unavailable: string
+    detailTitle: string
+    issue: string
+    issueSuccess: string
+    issueFailed: string
+    sign: string
+    signSuccess: string
+    signFailed: string
+    signConfirmTitle: string
+    signConfirmContent: string
+    downloadPdf: string
+    downloadWord: string
+    downloadFailed: string
+    saveSnapshot: string
+    saveSuccess: string
+    updateFailed: string
+    signed: string
+    notSigned: string
+    colCode: string
+    colClient: string
+    colCnpj: string
+    colCpf: string
+    colBrand: string
+    colStatus: string
+    colClientSign: string
+    colFormarcaSign: string
+    colGeneratedAt: string
+    colSignedAt: string
+    colAmount: string
+    colPaid: string
+    colClasses: string
+    colPaymentMethod: string
+    filters: {
+      clientName: string
+      code: string
+      dates: string
+      brandName: string
+      document: string
+      status: string
+    }
+    fields: {
+      code: string
+      companyDocument: string
+      representativeDocument: string
+      brandName: string
+      classes: string
+      amount: string
+      status: string
+    }
+    status: {
+      PreIssued: string
+      Issued: string
+      Signed: string
+      Cancelled: string
+    }
+  }
+  invoices: {
+    title: string
+    description: string
+    empty: string
+    loading: string
+    loadError: string
+    unavailable: string
+    colContract: string
+    colTenant: string
+    colMethod: string
+    colInstallments: string
+    colAmount: string
+    colExpected: string
+    colReceived: string
+    colStatus: string
+    payTitle: string
+    payDescription: string
+    method: string
+    pix: string
+    card: string
+    installments: string
+    expectedAmount: string
+    submitPayment: string
+    submitSuccess: string
+    submitFailed: string
+    awaitingApproval: string
+    paidMessage: string
+    rejectedMessage: string
+    approve: string
+    reject: string
+    approveSuccess: string
+    rejectSuccess: string
+    approveFailed: string
+    rejectFailed: string
+    approveConfirmTitle: string
+    rejectConfirmTitle: string
+    rejectConfirmContent: string
+    noInvoice: string
+    status: {
+      PendingPayment: string
+      AwaitingApproval: string
+      Paid: string
+      Rejected: string
+    }
+  }
+  processes: {
+    title: string
+    description: string
+    empty: string
+    loading: string
+    loadError: string
+    colBrand: string
+    colStatus: string
+    colNumber: string
+    colContract: string
+    statusGenerated: string
   }
   ufs: Record<BrazilUf, string>
 }

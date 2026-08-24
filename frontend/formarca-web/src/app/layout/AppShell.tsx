@@ -1,4 +1,4 @@
-import { Layout, Menu, theme } from 'antd'
+import { Alert, Layout, Menu, theme } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   Briefcase,
@@ -6,7 +6,9 @@ import {
   FileText,
   Home,
   Info,
+  Receipt,
   Settings,
+  Tag,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -25,7 +27,7 @@ function menuIcon(Icon: typeof Home) {
 export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { isPlatformAdmin } = useAuth()
+  const { isPlatformAdmin, isOnboardingLimited } = useAuth()
   const { t } = useI18n()
   const [collapsed, setCollapsed] = useState(false)
   const {
@@ -35,8 +37,10 @@ export function AppShell() {
   const selectedKey = useMemo(() => {
     const path = location.pathname
     if (path.startsWith('/admin')) return 'admin'
-    if (path.startsWith('/processos')) return 'processos'
-    if (path.startsWith('/contratos')) return 'contratos'
+    if (path.startsWith('/processos') || path.startsWith('/processes')) return 'processos'
+    if (path.startsWith('/contratos') || path.startsWith('/contracts')) return 'contratos'
+    if (path.startsWith('/faturas') || path.startsWith('/invoices')) return 'faturas'
+    if (path.startsWith('/marcas') || path.startsWith('/brands')) return 'marcas'
     if (
       path.startsWith('/clientes') ||
       path.startsWith('/cadastro') ||
@@ -44,7 +48,9 @@ export function AppShell() {
     ) {
       return 'clientes'
     }
-    if (path.startsWith('/informacoes')) return 'informacoes'
+    if (path.startsWith('/informacoes') || path.startsWith('/information')) {
+      return 'informacoes'
+    }
     return 'home'
   }, [location.pathname])
 
@@ -54,26 +60,44 @@ export function AppShell() {
       icon: menuIcon(Home),
       label: t('nav.home'),
     },
-    {
-      key: 'processos',
-      icon: menuIcon(ClipboardList),
-      label: t('nav.processes'),
-    },
+    ...(!isOnboardingLimited
+      ? [
+          {
+            key: 'processos',
+            icon: menuIcon(ClipboardList),
+            label: t('nav.processes'),
+          },
+        ]
+      : []),
     {
       key: 'contratos',
       icon: menuIcon(FileText),
       label: t('nav.contracts'),
     },
     {
+      key: 'faturas',
+      icon: menuIcon(Receipt),
+      label: t('nav.invoices'),
+    },
+    {
       key: 'clientes',
       icon: menuIcon(Briefcase),
       label: t('nav.customers'),
     },
-    {
-      key: 'informacoes',
-      icon: menuIcon(Info),
-      label: t('nav.information'),
-    },
+    ...(!isOnboardingLimited
+      ? [
+          {
+            key: 'marcas',
+            icon: menuIcon(Tag),
+            label: t('nav.brands'),
+          },
+          {
+            key: 'informacoes',
+            icon: menuIcon(Info),
+            label: t('nav.information'),
+          },
+        ]
+      : []),
     ...(isPlatformAdmin
       ? [
           {
@@ -131,6 +155,15 @@ export function AppShell() {
               borderRadius: borderRadiusLG,
             }}
           >
+            {isOnboardingLimited ? (
+              <Alert
+                type="info"
+                showIcon
+                message={t('onboarding.bannerTitle')}
+                description={t('onboarding.bannerDescription')}
+                style={{ marginBottom: 16 }}
+              />
+            ) : null}
             <Outlet />
           </div>
         </Content>

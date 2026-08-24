@@ -41,9 +41,9 @@ public sealed class SwitchTenantCommandHandler(
             t => t.Id == request.TenantId && !t.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
-        if (tenant.Status != TenantStatus.Active && !user.IsPlatformAdmin)
+        if (!tenant.Status.AllowsClientAccess() && !user.IsPlatformAdmin)
         {
-            throw new ForbiddenException("Tenant is not active.");
+            throw new ForbiddenException("Tenant is not available.");
         }
 
         if (!user.IsPlatformAdmin)
@@ -62,7 +62,8 @@ public sealed class SwitchTenantCommandHandler(
             repository, user.Id, cancellationToken, includeNonActiveTenants: user.IsPlatformAdmin);
         if (user.IsPlatformAdmin && tenants.All(t => t.Id != tenant.Id))
         {
-            tenants = tenants.Append(new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, false)).ToList();
+            tenants = tenants.Append(
+                new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, false, tenant.Status.ToString())).ToList();
         }
 
         var (tokens, permissions) = await AuthTokenIssuer.IssueAsync(

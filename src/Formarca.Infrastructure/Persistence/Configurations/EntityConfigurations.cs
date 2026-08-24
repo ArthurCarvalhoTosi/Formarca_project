@@ -19,8 +19,10 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.Email).HasMaxLength(256);
         builder.Property(x => x.Phone).HasMaxLength(32);
         builder.Property(x => x.Document).HasMaxLength(32);
-        builder.Property(x => x.BrandName).HasMaxLength(200);
-        builder.Property(x => x.BrandDescription).HasMaxLength(4000);
+        builder.Property(x => x.LegalRepresentativeName).HasMaxLength(200);
+        builder.Property(x => x.LegalRepresentativeDocument).HasMaxLength(32);
+        builder.Property(x => x.QuotedAmount).HasPrecision(18, 2);
+        builder.Property(x => x.BudgetNotes).HasMaxLength(4000);
         builder.HasIndex(x => x.Slug).IsUnique();
         builder.HasIndex(x => x.Email)
             .IsUnique()

@@ -5,7 +5,7 @@ import { Lock, Mail } from 'lucide-react'
 import { BrandLogo } from '@/shared/brand/BrandLogo'
 import { ApiError } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
-import { MOCK_CREDENTIALS } from '@/shared/auth/mockAuth'
+import { MOCK_CLIENT_CREDENTIALS, MOCK_CREDENTIALS } from '@/shared/auth/mockAuth'
 import { env } from '@/shared/config/env'
 import { LocaleSwitcher, useI18n } from '@/shared/i18n'
 
@@ -80,6 +80,11 @@ export function LoginPage() {
                 <Typography.Text code>
                   {MOCK_CREDENTIALS.password}
                 </Typography.Text>
+                <br />
+                {t('auth.mockClientHint', {
+                  email: MOCK_CLIENT_CREDENTIALS.email,
+                  password: MOCK_CLIENT_CREDENTIALS.password,
+                })}
               </>
             }
             style={{ marginBottom: 16 }}

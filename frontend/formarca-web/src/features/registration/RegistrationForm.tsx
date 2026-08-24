@@ -1,11 +1,12 @@
-import { App, Button, Card, Col, Form, Input, Row, Select } from 'antd'
+import { App, Button, Card, Col, Form, Input, InputNumber, Row, Select } from 'antd'
 import type { ChangeEvent } from 'react'
 import { BRAZIL_UFS, useI18n } from '@/shared/i18n'
-import { maskPhone, maskTaxId, maskZipCode } from './masks'
+import { maskCpf, maskPhone, maskTaxId, maskZipCode } from './masks'
 import type { RegistrationPayload } from './types'
 import {
   isBrazilUf,
   isValidBrPhone,
+  isValidCpf,
   isValidTaxId,
   isValidZipCode,
 } from './validation'
@@ -246,24 +247,72 @@ export function RegistrationForm({
         </Row>
       </Card>
 
-      <Card title={t('registration.sections.brand')} style={{ marginBottom: 16 }}>
-        <Form.Item
-          label={t('registration.fields.brandName')}
-          name="brandName"
-          rules={[required]}
-        >
-          <Input placeholder={t('registration.placeholders.brandName')} />
-        </Form.Item>
-        <Form.Item
-          label={t('registration.fields.brandDescription')}
-          name="brandDescription"
-          rules={[required]}
-        >
-          <Input.TextArea
-            rows={4}
-            placeholder={t('registration.placeholders.brandDescription')}
-          />
-        </Form.Item>
+      <Card title={t('registration.sections.commercial')} style={{ marginBottom: 16 }}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label={t('registration.fields.legalRepresentativeName')}
+              name="legalRepresentativeName"
+              rules={[required]}
+            >
+              <Input
+                placeholder={t('registration.placeholders.legalRepresentativeName')}
+                autoComplete="name"
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label={t('registration.fields.legalRepresentativeDocument')}
+              name="legalRepresentativeDocument"
+              getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
+                maskCpf(event.target.value)
+              }
+              rules={[
+                required,
+                {
+                  validator: (_, value: string) =>
+                    isValidCpf(value ?? '')
+                      ? Promise.resolve()
+                      : Promise.reject(new Error(t('validation.cpf'))),
+                },
+              ]}
+            >
+              <Input
+                placeholder={t(
+                  'registration.placeholders.legalRepresentativeDocument',
+                )}
+                inputMode="numeric"
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label={t('registration.fields.quotedAmount')}
+              name="quotedAmount"
+            >
+              <InputNumber
+                min={0}
+                step={0.01}
+                precision={2}
+                style={{ width: '100%' }}
+                prefix="R$"
+                placeholder={t('registration.placeholders.quotedAmount')}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24}>
+            <Form.Item
+              label={t('registration.fields.budgetNotes')}
+              name="budgetNotes"
+            >
+              <Input.TextArea
+                rows={3}
+                placeholder={t('registration.placeholders.budgetNotes')}
+              />
+            </Form.Item>
+          </Col>
+        </Row>
       </Card>
 
       <Button type="primary" htmlType="submit" size="large" loading={submitting}>
