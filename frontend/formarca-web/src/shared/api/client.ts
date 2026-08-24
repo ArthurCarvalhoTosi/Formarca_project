@@ -1,7 +1,7 @@
 import { env } from '@/shared/config/env'
 import { isMockAccessToken } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
-import { ApiError, type ApiRequestOptions } from './types'
+import { ApiError, parseApiErrorBody, type ApiRequestOptions } from './types'
 
 type UnauthorizedHandler = () => void
 
@@ -20,18 +20,6 @@ async function parseBody(response: Response): Promise<unknown> {
   } catch {
     return text
   }
-}
-
-function errorMessage(body: unknown, fallback: string): string {
-  if (typeof body === 'string' && body.trim()) return body
-  if (body && typeof body === 'object') {
-    const record = body as Record<string, unknown>
-    if (typeof record.title === 'string') return record.title
-    if (typeof record.message === 'string') return record.message
-    if (typeof record.detail === 'string') return record.detail
-    if (typeof record.error === 'string') return record.error
-  }
-  return fallback
 }
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -145,7 +133,7 @@ export async function apiRequest<T>(
     } else {
       onUnauthorized?.()
       const errBody = await parseBody(response)
-      throw new ApiError(401, errorMessage(errBody, 'Sessão expirada'), errBody)
+      throw new ApiError(401, parseApiErrorBody(errBody, 'Sessão expirada'), errBody)
     }
   }
 
@@ -161,7 +149,7 @@ export async function apiRequest<T>(
     }
     throw new ApiError(
       response.status,
-      errorMessage(parsed, `Erro HTTP ${response.status}`),
+      parseApiErrorBody(parsed, `Erro HTTP ${response.status}`),
       parsed,
     )
   }
@@ -198,7 +186,7 @@ export async function apiDownload(path: string, filename: string): Promise<void>
   if (!response.ok) {
     throw new ApiError(
       response.status,
-      errorMessage(parsed, `Erro HTTP ${response.status}`),
+      parseApiErrorBody(parsed, `Erro HTTP ${response.status}`),
       parsed,
     )
   }

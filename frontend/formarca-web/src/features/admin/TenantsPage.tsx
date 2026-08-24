@@ -1,10 +1,16 @@
 import { Alert, Spin, Table, Tag, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { adminApi } from './api'
 import type { Tenant } from './types'
 import { ApiError } from '@/shared/api/types'
 import { useI18n } from '@/shared/i18n'
 import type { Dictionary } from '@/shared/i18n'
+import {
+  TableViewToolbar,
+  useTableViews,
+  type TableViewColumn,
+} from '@/shared/tableViews'
 import { TenantApprovalControls } from './TenantApprovalControls'
 
 function statusColor(status?: string) {
@@ -40,6 +46,33 @@ export function TenantsPage() {
     queryFn: () => adminApi.listTenants(),
   })
 
+  const columns = useMemo<TableViewColumn<Tenant>[]>(
+    () => [
+      { key: 'name', dataIndex: 'name', title: t('admin.colName') },
+      { key: 'slug', dataIndex: 'slug', title: t('admin.colSlug') },
+      { key: 'document', dataIndex: 'document', title: t('admin.colDocument') },
+      {
+        key: 'status',
+        dataIndex: 'status',
+        title: t('admin.colStatus'),
+        render: (status: string | undefined) => (
+          <Tag color={statusColor(status)}>{statusLabel(status, dict)}</Tag>
+        ),
+      },
+      {
+        key: 'actions',
+        title: t('common.actions'),
+        hideable: false,
+        render: (_: unknown, tenant: Tenant) => (
+          <TenantApprovalControls tenant={tenant} />
+        ),
+      },
+    ],
+    [dict, t],
+  )
+
+  const tableViews = useTableViews({ tableKey: 'admin.tenants', columns })
+
   if (query.isLoading) {
     return <Spin tip={t('admin.tenantsLoading')} />
   }
@@ -69,29 +102,14 @@ export function TenantsPage() {
       <Typography.Paragraph type="secondary">
         {t('admin.tenantsDescription')}
       </Typography.Paragraph>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <TableViewToolbar controller={tableViews} />
+      </div>
       <Table<Tenant>
         rowKey="id"
         dataSource={data}
         locale={{ emptyText: t('admin.tenantsEmpty') }}
-        columns={[
-          { title: t('admin.colName'), dataIndex: 'name' },
-          { title: t('admin.colSlug'), dataIndex: 'slug' },
-          { title: t('admin.colDocument'), dataIndex: 'document' },
-          {
-            title: t('admin.colStatus'),
-            dataIndex: 'status',
-            render: (status: string | undefined) => (
-              <Tag color={statusColor(status)}>{statusLabel(status, dict)}</Tag>
-            ),
-          },
-          {
-            title: t('common.actions'),
-            key: 'actions',
-            render: (_: unknown, tenant: Tenant) => (
-              <TenantApprovalControls tenant={tenant} />
-            ),
-          },
-        ]}
+        columns={tableViews.visibleColumns}
         pagination={{ pageSize: 10 }}
       />
     </div>

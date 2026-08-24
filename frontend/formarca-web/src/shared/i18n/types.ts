@@ -296,6 +296,9 @@ export type Dictionary = {
     formEditTitle: string
     preIssue: string
     preIssueSuccess: string
+    preIssueFailed: string
+    preIssueCompanyRequired: string
+    preIssueRepresentativeRequired: string
     fields: {
       name: string
       servicesDescription: string
@@ -425,6 +428,27 @@ export type Dictionary = {
     colNumber: string
     colContract: string
     statusGenerated: string
+  }
+  tableViews: {
+    default: string
+    selectView: string
+    columns: string
+    saveAs: string
+    rename: string
+    nameLabel: string
+    namePlaceholder: string
+    nameRequired: string
+    nameTaken: string
+    minColumns: string
+    saveSuccess: string
+    created: string
+    renamed: string
+    deleted: string
+    deleteConfirmTitle: string
+    deleteConfirmContent: string
+    saveFailed: string
+    deleteFailed: string
+    unsaved: string
   }
   ufs: Record<BrazilUf, string>
 }

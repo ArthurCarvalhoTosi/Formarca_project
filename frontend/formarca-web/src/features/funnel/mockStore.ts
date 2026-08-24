@@ -2,6 +2,10 @@ import { MOCK_ACCESS_TOKEN, MOCK_TENANTS } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
 import { ApiError } from '@/shared/api/types'
 import type { Brand, BrandListFilters, BrandPayload } from '@/features/brands/types'
+import {
+  PRE_ISSUE_COMPANY_DOCUMENT_REQUIRED,
+  PRE_ISSUE_REPRESENTATIVE_DOCUMENT_REQUIRED,
+} from '@/features/brands/preIssueError'
 import type {
   Contract,
   ContractListFilters,
@@ -308,6 +312,15 @@ export const mockFunnel = {
     if (!brand) throw new ApiError(404, 'Brand not found')
     const tenant = mockGetTenantRecord(brand.tenantId)
     if (!tenant) throw new ApiError(404, 'Customer not found')
+    const companyDocument = payload.companyDocument || tenant.document
+    const representativeDocument =
+      payload.representativeDocument || tenant.legalRepresentativeDocument
+    if (!companyDocument?.trim()) {
+      throw new ApiError(409, PRE_ISSUE_COMPANY_DOCUMENT_REQUIRED)
+    }
+    if (!representativeDocument?.trim()) {
+      throw new ApiError(409, PRE_ISSUE_REPRESENTATIVE_DOCUMENT_REQUIRED)
+    }
     const now = new Date().toISOString()
     const contract: Contract = {
       id: crypto.randomUUID(),
@@ -315,9 +328,8 @@ export const mockFunnel = {
       tenantId: brand.tenantId,
       tenantName: tenant.name,
       brandId: brand.id,
-      companyDocument: payload.companyDocument || tenant.document,
-      representativeDocument:
-        payload.representativeDocument || tenant.legalRepresentativeDocument,
+      companyDocument,
+      representativeDocument,
       brandName: payload.brandName || brand.name,
       classes: payload.classes ?? [...brand.inpiClasses],
       amount: payload.amount ?? tenant.quotedAmount ?? 0,

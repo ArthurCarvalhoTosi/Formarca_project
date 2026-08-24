@@ -101,6 +101,23 @@ public sealed class UserTenantMembershipConfiguration : IEntityTypeConfiguration
     }
 }
 
+public sealed class UserTableViewConfiguration : IEntityTypeConfiguration<UserTableView>
+{
+    public void Configure(EntityTypeBuilder<UserTableView> builder)
+    {
+        builder.ToTable("UserTableViews");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TableKey).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(UserTableView.NameMaxLength).IsRequired();
+        builder.Property(x => x.ColumnKeysJson).HasMaxLength(4000).IsRequired();
+        builder.HasIndex(x => new { x.UserId, x.TableKey, x.Name })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => new { x.UserId, x.TableKey });
+        builder.Ignore(x => x.DomainEvents);
+    }
+}
+
 public sealed class UserGroupMembershipConfiguration : IEntityTypeConfiguration<UserGroupMembership>
 {
     public void Configure(EntityTypeBuilder<UserGroupMembership> builder)

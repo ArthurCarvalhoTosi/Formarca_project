@@ -7,6 +7,11 @@ import { ApiError } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import { formatClasses, formatDate, formatMoney } from '@/shared/money'
+import {
+  TableViewToolbar,
+  useTableViews,
+  type TableViewColumn,
+} from '@/shared/tableViews'
 import { contractsApi } from './api'
 import type { Contract, ContractStatus } from './types'
 
@@ -66,6 +71,92 @@ export function ContractsPage() {
     [dict.contracts.status],
   )
 
+  const columns = useMemo<TableViewColumn<Contract>[]>(
+    () => [
+      { key: 'code', dataIndex: 'code', title: t('contracts.colCode'), fixed: 'left' },
+      {
+        key: 'tenantName',
+        dataIndex: 'tenantName',
+        title: t('contracts.colClient'),
+        adminOnly: true,
+        render: (value: string | null | undefined) => value || '—',
+      },
+      { key: 'companyDocument', dataIndex: 'companyDocument', title: t('contracts.colCnpj') },
+      {
+        key: 'representativeDocument',
+        dataIndex: 'representativeDocument',
+        title: t('contracts.colCpf'),
+      },
+      { key: 'brandName', dataIndex: 'brandName', title: t('contracts.colBrand') },
+      {
+        key: 'status',
+        dataIndex: 'status',
+        title: t('contracts.colStatus'),
+        render: (value: string) => (
+          <Tag color={statusColor(value)}>{statusLabel(value)}</Tag>
+        ),
+      },
+      {
+        key: 'clientSignedAt',
+        dataIndex: 'clientSignedAt',
+        title: t('contracts.colClientSign'),
+        render: (value: string | null | undefined) =>
+          value ? t('contracts.signed') : t('contracts.notSigned'),
+      },
+      {
+        key: 'formarcaSignedAt',
+        dataIndex: 'formarcaSignedAt',
+        title: t('contracts.colFormarcaSign'),
+        render: (value: string | null | undefined) =>
+          value ? t('contracts.signed') : t('contracts.notSigned'),
+      },
+      {
+        key: 'generatedAtUtc',
+        dataIndex: 'generatedAtUtc',
+        title: t('contracts.colGeneratedAt'),
+        render: (value: string | null | undefined) => formatDate(value, locale),
+      },
+      {
+        key: 'signedAtUtc',
+        dataIndex: 'signedAtUtc',
+        title: t('contracts.colSignedAt'),
+        render: (value: string | null | undefined) => formatDate(value, locale),
+      },
+      {
+        key: 'amount',
+        dataIndex: 'amount',
+        title: t('contracts.colAmount'),
+        render: (value: number) => formatMoney(value ?? 0, locale),
+      },
+      {
+        key: 'paidAmount',
+        dataIndex: 'paidAmount',
+        title: t('contracts.colPaid'),
+        render: (value: number | null | undefined) =>
+          value == null ? '—' : formatMoney(value, locale),
+      },
+      {
+        key: 'classes',
+        dataIndex: 'classes',
+        title: t('contracts.colClasses'),
+        render: (value: number[] | string) => formatClasses(value),
+      },
+      {
+        key: 'paymentMethod',
+        dataIndex: 'paymentMethod',
+        title: t('contracts.colPaymentMethod'),
+        render: (value: string | null | undefined) => {
+          if (value === 'Pix') return t('invoices.pix')
+          if (value === 'Card') return t('invoices.card')
+          return '—'
+        },
+      },
+    ],
+    [locale, statusLabel, t],
+  )
+
+  const tableViews = useTableViews({ tableKey: 'contracts', columns })
+
   if (query.isLoading) {
     return <Spin tip={t('contracts.loading')} />
   }
@@ -94,54 +185,66 @@ export function ContractsPage() {
         {t('contracts.description')}
       </Typography.Paragraph>
 
-      <Space wrap style={{ marginBottom: 16 }}>
-        {isPlatformAdmin ? (
+      <div
+        style={{
+          display: 'flex',
+          gap: 16,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Space wrap>
+          {isPlatformAdmin ? (
+            <Input
+              allowClear
+              placeholder={t('contracts.filters.clientName')}
+              value={clientName}
+              onChange={(event) => setClientName(event.target.value)}
+              style={{ width: 200 }}
+            />
+          ) : null}
           <Input
             allowClear
-            placeholder={t('contracts.filters.clientName')}
-            value={clientName}
-            onChange={(event) => setClientName(event.target.value)}
-            style={{ width: 200 }}
+            placeholder={t('contracts.filters.code')}
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            style={{ width: 180 }}
           />
-        ) : null}
-        <Input
-          allowClear
-          placeholder={t('contracts.filters.code')}
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          style={{ width: 180 }}
-        />
-        <Input
-          allowClear
-          placeholder={t('contracts.filters.brandName')}
-          value={brandName}
-          onChange={(event) => setBrandName(event.target.value)}
-          style={{ width: 180 }}
-        />
-        <Input
-          allowClear
-          placeholder={t('contracts.filters.document')}
-          value={document}
-          onChange={(event) => setDocument(event.target.value)}
-          style={{ width: 180 }}
-        />
-        <Select
-          allowClear
-          placeholder={t('contracts.filters.status')}
-          value={status}
-          onChange={setStatus}
-          style={{ width: 160 }}
-          options={STATUS_OPTIONS.map((value) => ({
-            value,
-            label: statusLabel(value),
-          }))}
-        />
-        <DatePicker.RangePicker
-          value={dates}
-          onChange={(value) => setDates(value)}
-          placeholder={[t('contracts.filters.dates'), t('contracts.filters.dates')]}
-        />
-      </Space>
+          <Input
+            allowClear
+            placeholder={t('contracts.filters.brandName')}
+            value={brandName}
+            onChange={(event) => setBrandName(event.target.value)}
+            style={{ width: 180 }}
+          />
+          <Input
+            allowClear
+            placeholder={t('contracts.filters.document')}
+            value={document}
+            onChange={(event) => setDocument(event.target.value)}
+            style={{ width: 180 }}
+          />
+          <Select
+            allowClear
+            placeholder={t('contracts.filters.status')}
+            value={status}
+            onChange={setStatus}
+            style={{ width: 160 }}
+            options={STATUS_OPTIONS.map((value) => ({
+              value,
+              label: statusLabel(value),
+            }))}
+          />
+          <DatePicker.RangePicker
+            value={dates}
+            onChange={(value) => setDates(value)}
+            placeholder={[t('contracts.filters.dates'), t('contracts.filters.dates')]}
+          />
+        </Space>
+        <TableViewToolbar controller={tableViews} />
+      </div>
 
       <Table<Contract>
         rowKey="id"
@@ -152,75 +255,7 @@ export function ContractsPage() {
           onClick: () => navigate(`/contratos/${record.id}`),
           style: { cursor: 'pointer' },
         })}
-        columns={[
-          { title: t('contracts.colCode'), dataIndex: 'code', fixed: 'left' },
-          ...(isPlatformAdmin
-            ? [
-                {
-                  title: t('contracts.colClient'),
-                  dataIndex: 'tenantName',
-                  render: (value: string | null | undefined) => value || '—',
-                },
-              ]
-            : []),
-          { title: t('contracts.colCnpj'), dataIndex: 'companyDocument' },
-          { title: t('contracts.colCpf'), dataIndex: 'representativeDocument' },
-          { title: t('contracts.colBrand'), dataIndex: 'brandName' },
-          {
-            title: t('contracts.colStatus'),
-            dataIndex: 'status',
-            render: (value: string) => (
-              <Tag color={statusColor(value)}>{statusLabel(value)}</Tag>
-            ),
-          },
-          {
-            title: t('contracts.colClientSign'),
-            dataIndex: 'clientSignedAt',
-            render: (value: string | null | undefined) =>
-              value ? t('contracts.signed') : t('contracts.notSigned'),
-          },
-          {
-            title: t('contracts.colFormarcaSign'),
-            dataIndex: 'formarcaSignedAt',
-            render: (value: string | null | undefined) =>
-              value ? t('contracts.signed') : t('contracts.notSigned'),
-          },
-          {
-            title: t('contracts.colGeneratedAt'),
-            dataIndex: 'generatedAtUtc',
-            render: (value: string | null | undefined) => formatDate(value, locale),
-          },
-          {
-            title: t('contracts.colSignedAt'),
-            dataIndex: 'signedAtUtc',
-            render: (value: string | null | undefined) => formatDate(value, locale),
-          },
-          {
-            title: t('contracts.colAmount'),
-            dataIndex: 'amount',
-            render: (value: number) => formatMoney(value ?? 0, locale),
-          },
-          {
-            title: t('contracts.colPaid'),
-            dataIndex: 'paidAmount',
-            render: (value: number | null | undefined) =>
-              value == null ? '—' : formatMoney(value, locale),
-          },
-          {
-            title: t('contracts.colClasses'),
-            dataIndex: 'classes',
-            render: (value: number[] | string) => formatClasses(value),
-          },
-          {
-            title: t('contracts.colPaymentMethod'),
-            dataIndex: 'paymentMethod',
-            render: (value: string | null | undefined) => {
-              if (value === 'Pix') return t('invoices.pix')
-              if (value === 'Card') return t('invoices.card')
-              return '—'
-            },
-          },
-        ]}
+        columns={tableViews.visibleColumns}
         pagination={{ pageSize: 10 }}
       />
     </div>

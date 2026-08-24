@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Input, Spin, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Input, Space, Spin, Table, Tag, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { TenantApprovalControls } from '@/features/admin/TenantApprovalControls'
 import { ApiError } from '@/shared/api/types'
@@ -8,6 +8,11 @@ import { useAuth } from '@/shared/auth/AuthContext'
 import { env } from '@/shared/config/env'
 import { useI18n } from '@/shared/i18n'
 import type { Dictionary } from '@/shared/i18n'
+import {
+  TableViewToolbar,
+  useTableViews,
+  type TableViewColumn,
+} from '@/shared/tableViews'
 import { customersApi } from './api'
 import type { CustomerListItem } from './types'
 
@@ -58,6 +63,44 @@ export function CustomersPage() {
     queryFn: () => customersApi.list(isPlatformAdmin),
   })
 
+  const columns = useMemo<TableViewColumn<CustomerListItem>[]>(
+    () => [
+      { key: 'name', dataIndex: 'name', title: t('customers.colName') },
+      {
+        key: 'document',
+        dataIndex: 'document',
+        title: t('customers.colDocument'),
+        render: (value: string | null | undefined) => value || '—',
+      },
+      {
+        key: 'email',
+        dataIndex: 'email',
+        title: t('customers.colEmail'),
+        render: (value: string | null | undefined) => value || '—',
+      },
+      {
+        key: 'status',
+        dataIndex: 'status',
+        title: t('customers.colStatus'),
+        render: (status: string | undefined) => (
+          <Tag color={statusColor(status)}>{statusLabel(status, dict)}</Tag>
+        ),
+      },
+      {
+        key: 'actions',
+        title: t('common.actions'),
+        hideable: false,
+        adminOnly: true,
+        render: (_: unknown, row: CustomerListItem) => (
+          <TenantApprovalControls tenant={row} stopRowClick />
+        ),
+      },
+    ],
+    [dict, t],
+  )
+
+  const tableViews = useTableViews({ tableKey: 'customers', columns })
+
   const filtered = useMemo(() => {
     const data = query.data ?? []
     return data.filter((row) => matchesSearch(row, search))
@@ -100,29 +143,30 @@ export function CustomersPage() {
         />
       ) : null}
 
-      <div>
-        <div style={{
+      <div
+        style={{
           display: 'flex',
           gap: 16,
           marginBottom: 16,
           flexWrap: 'wrap',
           alignItems: 'center',
+          justifyContent: 'space-between',
         }}
-      />
-        <Input.Search
-          allowClear
-          placeholder={t('customers.searchPlaceholder')}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onSearch={setSearch}
-          style={{ maxWidth: 360, flex: 1 }}
-        />
-        <Button
-          type="primary"
-          onClick={() => navigate('/clientes/novo')}
-        >
-          {t('customers.new')}
-        </Button>
+      >
+        <Space wrap>
+          <Input.Search
+            allowClear
+            placeholder={t('customers.searchPlaceholder')}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onSearch={setSearch}
+            style={{ maxWidth: 360, width: 360 }}
+          />
+          <Button type="primary" onClick={() => navigate('/clientes/novo')}>
+            {t('customers.new')}
+          </Button>
+        </Space>
+        <TableViewToolbar controller={tableViews} />
       </div>
 
       <Table<CustomerListItem>
@@ -133,37 +177,7 @@ export function CustomersPage() {
           onClick: () => navigate(`/clientes/${record.id}`),
           style: { cursor: 'pointer' },
         })}
-        columns={[
-          { title: t('customers.colName'), dataIndex: 'name' },
-          {
-            title: t('customers.colDocument'),
-            dataIndex: 'document',
-            render: (value: string | null | undefined) => value || '—',
-          },
-          {
-            title: t('customers.colEmail'),
-            dataIndex: 'email',
-            render: (value: string | null | undefined) => value || '—',
-          },
-          {
-            title: t('customers.colStatus'),
-            dataIndex: 'status',
-            render: (status: string | undefined) => (
-              <Tag color={statusColor(status)}>{statusLabel(status, dict)}</Tag>
-            ),
-          },
-          ...(isPlatformAdmin
-            ? [
-                {
-                  title: t('common.actions'),
-                  key: 'actions',
-                  render: (_: unknown, row: CustomerListItem) => (
-                    <TenantApprovalControls tenant={row} stopRowClick />
-                  ),
-                },
-              ]
-            : []),
-        ]}
+        columns={tableViews.visibleColumns}
         pagination={{ pageSize: 10 }}
       />
     </div>

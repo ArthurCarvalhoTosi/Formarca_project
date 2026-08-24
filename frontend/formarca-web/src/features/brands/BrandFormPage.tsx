@@ -13,10 +13,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { contractsApi } from '@/features/contracts/api'
 import { customersApi } from '@/features/customers/api'
-import { ApiError } from '@/shared/api/types'
+import { ApiError, getApiErrorMessage } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import { brandsApi } from './api'
+import { preIssueErrorMessage } from './preIssueError'
 import { NICE_CLASSES, type BrandPayload } from './types'
 
 export function BrandFormPage() {
@@ -73,6 +74,9 @@ export function BrandFormPage() {
       message.success(t('brands.preIssueSuccess'))
       navigate(`/contratos/${contract.id}`)
     },
+    onError: (error) => {
+      message.error(preIssueErrorMessage(error, t))
+    },
   })
 
   if (!isNew && query.isLoading) {
@@ -107,14 +111,16 @@ export function BrandFormPage() {
         {isNew ? t('brands.formCreateTitle') : t('brands.formEditTitle')}
       </Typography.Title>
 
-      {saveMutation.isError ? (
+      {saveMutation.isError || preIssueMutation.isError || deleteMutation.isError ? (
         <Alert
           type="error"
           showIcon
           message={
-            saveMutation.error instanceof ApiError
-              ? saveMutation.error.message
-              : t('brands.saveFailed')
+            saveMutation.isError
+              ? getApiErrorMessage(saveMutation.error, t('brands.saveFailed'))
+              : preIssueMutation.isError
+                ? preIssueErrorMessage(preIssueMutation.error, t)
+                : getApiErrorMessage(deleteMutation.error, t('brands.deleteFailed'))
           }
           style={{ marginBottom: 16 }}
         />

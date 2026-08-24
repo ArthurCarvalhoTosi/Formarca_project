@@ -5,7 +5,7 @@ import { NICE_CLASSES } from '@/features/brands/types'
 import { PayInvoicePanel } from '@/features/invoices/PayInvoicePanel'
 import { maskCpf, maskTaxId } from '@/features/registration/masks'
 import { isValidCpf, isValidTaxId, onlyDigits } from '@/features/registration/validation'
-import { ApiError } from '@/shared/api/types'
+import { ApiError, getApiErrorMessage } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import { formatDate, parseClasses } from '@/shared/money'
@@ -70,6 +70,9 @@ export function ContractDetailPage() {
       await invalidate()
       message.success(t('contracts.issueSuccess'))
     },
+    onError: (error) => {
+      message.error(getApiErrorMessage(error, t('contracts.issueFailed')))
+    },
   })
 
   const signMutation = useMutation({
@@ -78,14 +81,15 @@ export function ContractDetailPage() {
       await invalidate()
       message.success(t('contracts.signSuccess'))
     },
+    onError: (error) => {
+      message.error(getApiErrorMessage(error, t('contracts.signFailed')))
+    },
   })
 
   const downloadMutation = useMutation({
     mutationFn: (format: 'pdf' | 'docx') => contractsApi.download(id!, format),
-    onError: (err) => {
-      message.error(
-        err instanceof ApiError ? err.message : t('contracts.downloadFailed'),
-      )
+    onError: (error) => {
+      message.error(getApiErrorMessage(error, t('contracts.downloadFailed')))
     },
   })
 
@@ -139,14 +143,16 @@ export function ContractDetailPage() {
         {contract.clientSignedAt ? t('contracts.signed') : t('contracts.notSigned')}
       </Typography.Paragraph>
 
-      {updateMutation.isError ? (
+      {updateMutation.isError || issueMutation.isError || signMutation.isError ? (
         <Alert
           type="error"
           showIcon
           message={
-            updateMutation.error instanceof ApiError
-              ? updateMutation.error.message
-              : t('contracts.updateFailed')
+            updateMutation.isError
+              ? getApiErrorMessage(updateMutation.error, t('contracts.updateFailed'))
+              : issueMutation.isError
+                ? getApiErrorMessage(issueMutation.error, t('contracts.issueFailed'))
+                : getApiErrorMessage(signMutation.error, t('contracts.signFailed'))
           }
           style={{ marginBottom: 16 }}
         />

@@ -58,6 +58,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
 
     public DbSet<UserGroupMembership> UserGroupMemberships => Set<UserGroupMembership>();
 
+    public DbSet<UserTableView> UserTableViews => Set<UserTableView>();
+
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<PlatformNotice> PlatformNotices => Set<PlatformNotice>();

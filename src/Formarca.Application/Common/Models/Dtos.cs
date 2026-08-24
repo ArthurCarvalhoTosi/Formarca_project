@@ -145,3 +145,12 @@ public sealed record ProcessDto(
     string? ContractCode = null);
 
 public sealed record ContractDocumentFile(string FileName, string ContentType, byte[] Content);
+
+public sealed record UserTableViewDto(
+    Guid Id,
+    string TableKey,
+    string Name,
+    IReadOnlyList<string> ColumnKeys,
+    bool IsActive,
+    DateTime CreatedAtUtc,
+    DateTime? UpdatedAtUtc);
