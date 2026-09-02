@@ -70,7 +70,9 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IGenericRepository, GenericRepository>();
+        services.Configure<Documents.DocumentOptions>(configuration.GetSection(Documents.DocumentOptions.SectionName));
         services.AddScoped<IContractDocumentGenerator, Documents.ContractDocumentGenerator>();
+        services.AddSingleton<IContractTemplateProvider, Documents.EmbeddedContractTemplateProvider>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
         return services;

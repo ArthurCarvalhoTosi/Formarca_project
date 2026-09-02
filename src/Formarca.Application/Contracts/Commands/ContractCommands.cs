@@ -9,7 +9,6 @@ using Formarca.Domain.Contracts;
 using Formarca.Domain.Invoices;
 using Formarca.Domain.Tenancy;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.Contracts.Commands;
 
@@ -37,7 +36,8 @@ public sealed class PreIssueContractCommandValidator : AbstractValidator<PreIssu
 public sealed class PreIssueContractCommandHandler(
     ICurrentUser currentUser,
     IGenericRepository repository,
-    ITenantContext tenantContext) : IRequestHandler<PreIssueContractCommand, ContractDto>
+    ITenantContext tenantContext,
+    IContractTemplateProvider templates) : IRequestHandler<PreIssueContractCommand, ContractDto>
 {
     public async Task<ContractDto> Handle(PreIssueContractCommand request, CancellationToken cancellationToken)
     {
@@ -60,6 +60,13 @@ public sealed class PreIssueContractCommandHandler(
         var brandName = string.IsNullOrWhiteSpace(request.BrandName) ? brand.Name : request.BrandName;
         var classes = string.IsNullOrWhiteSpace(request.Classes) ? brand.ClassesSnapshot() : request.Classes;
         var amount = request.Amount > 0 ? request.Amount : tenant.QuotedAmount ?? 0;
+        var companyName = tenant.Name;
+        var street = tenant.Address?.Street ?? string.Empty;
+        var number = tenant.Address?.Number ?? string.Empty;
+        var city = tenant.Address?.City ?? string.Empty;
+        var state = tenant.Address?.State ?? string.Empty;
+        var zipCode = tenant.Address?.ZipCode ?? string.Empty;
+        var minimumTerm = ContractTemplateKeys.DefaultMinimumTerm;
 
         if (string.IsNullOrWhiteSpace(companyDocument))
         {
@@ -71,6 +78,22 @@ public sealed class PreIssueContractCommandHandler(
             throw new ConflictException("Legal representative document is required to pre-issue a contract.");
         }
 
+        var template = templates.GetTemplate(ContractTemplateKeys.PrestacaoServicos);
+        var bodyMarkdown = ContractPlaceholders.Merge(
+            template,
+            ContractPlaceholders.From(
+                companyName,
+                companyDocument,
+                street,
+                number,
+                city,
+                state,
+                zipCode,
+                brandName!,
+                classes ?? string.Empty,
+                amount,
+                minimumTerm));
+
         var code = await ContractCode.AllocateAsync(repository, cancellationToken);
         var contract = Contract.PreIssue(
             brand.TenantId,
@@ -80,7 +103,16 @@ public sealed class PreIssueContractCommandHandler(
             representativeDocument,
             brandName,
             classes ?? string.Empty,
-            amount);
+            amount,
+            ContractTemplateKeys.PrestacaoServicos,
+            bodyMarkdown,
+            companyName,
+            street,
+            number,
+            city,
+            state,
+            zipCode,
+            minimumTerm);
 
         repository.Add(contract);
         await repository.CommitAsync(cancellationToken);
@@ -94,7 +126,15 @@ public sealed record UpdateContractCommand(
     string CompanyDocument,
     string RepresentativeDocument,
     string BrandName,
-    string Classes) : IRequest<ContractDto>;
+    string Classes,
+    string? BodyMarkdown,
+    string? MinimumTerm,
+    string? CompanyName,
+    string? Street,
+    string? Number,
+    string? City,
+    string? State,
+    string? ZipCode) : IRequest<ContractDto>;
 
 public sealed class UpdateContractCommandValidator : AbstractValidator<UpdateContractCommand>
 {
@@ -106,6 +146,14 @@ public sealed class UpdateContractCommandValidator : AbstractValidator<UpdateCon
         RuleFor(x => x.RepresentativeDocument).NotEmpty().MaximumLength(32);
         RuleFor(x => x.BrandName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Classes).MaximumLength(200);
+        RuleFor(x => x.BodyMarkdown).MaximumLength(100_000);
+        RuleFor(x => x.MinimumTerm).MaximumLength(100);
+        RuleFor(x => x.CompanyName).MaximumLength(200);
+        RuleFor(x => x.Street).MaximumLength(200);
+        RuleFor(x => x.Number).MaximumLength(20);
+        RuleFor(x => x.City).MaximumLength(100);
+        RuleFor(x => x.State).MaximumLength(2);
+        RuleFor(x => x.ZipCode).MaximumLength(16);
     }
 }
 
@@ -126,7 +174,15 @@ public sealed class UpdateContractCommandHandler(
                 request.RepresentativeDocument,
                 request.BrandName,
                 request.Classes,
-                request.Amount);
+                request.Amount,
+                request.CompanyName,
+                request.Street,
+                request.Number,
+                request.City,
+                request.State,
+                request.ZipCode,
+                request.MinimumTerm,
+                request.BodyMarkdown);
         }
         catch (InvalidOperationException ex)
         {
@@ -147,7 +203,8 @@ public sealed record IssueContractCommand(Guid Id) : IRequest<ContractDto>;
 public sealed class IssueContractCommandHandler(
     ICurrentUser currentUser,
     IGenericRepository repository,
-    ITenantContext tenantContext) : IRequestHandler<IssueContractCommand, ContractDto>
+    ITenantContext tenantContext,
+    IContractDocumentGenerator documents) : IRequestHandler<IssueContractCommand, ContractDto>
 {
     public async Task<ContractDto> Handle(IssueContractCommand request, CancellationToken cancellationToken)
     {
@@ -162,30 +219,46 @@ public sealed class IssueContractCommandHandler(
             throw new ConflictException(ex.Message);
         }
 
+        var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
+        await ContractDocuments.UpsertPdfAsync(repository, contract, ContractFileKind.Issued, pdf, cancellationToken);
         await repository.CommitAsync(cancellationToken);
         return contract.ToDto();
     }
 }
 
-public sealed record SignContractCommand(Guid Id) : IRequest<ContractDto>;
+public sealed record SignContractCommand(Guid Id, string SignaturePngBase64) : IRequest<ContractDto>;
+
+public sealed class SignContractCommandValidator : AbstractValidator<SignContractCommand>
+{
+    public SignContractCommandValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.SignaturePngBase64).NotEmpty();
+    }
+}
 
 public sealed class SignContractCommandHandler(
     ICurrentUser currentUser,
     IGenericRepository repository,
-    ITenantContext tenantContext) : IRequestHandler<SignContractCommand, ContractDto>
+    ITenantContext tenantContext,
+    IContractDocumentGenerator documents) : IRequestHandler<SignContractCommand, ContractDto>
 {
     public async Task<ContractDto> Handle(SignContractCommand request, CancellationToken cancellationToken)
     {
         CommercialAccess.IgnoreTenantFiltersIfAdmin(tenantContext, currentUser);
         var contract = await UpdateContractCommandHandler.LoadAsync(repository, request.Id, cancellationToken);
+        var signature = PngSignature.DecodeRequired(request.SignaturePngBase64);
         try
         {
-            contract.SignByClient();
+            contract.SignByClient(signature);
         }
         catch (InvalidOperationException ex)
         {
             throw new ConflictException(ex.Message);
         }
+
+        var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
+        await ContractDocuments.UpsertPdfAsync(repository, contract, ContractFileKind.Signed, pdf, cancellationToken);
 
         var invoiceExists = await repository.AnyAsync<Invoice>(
             i => i.ContractId == contract.Id && !i.IsDeleted, cancellationToken);

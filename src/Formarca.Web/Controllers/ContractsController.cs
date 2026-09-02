@@ -29,7 +29,17 @@ public sealed class ContractsController(ISender sender) : ControllerBase
         string CompanyDocument,
         string RepresentativeDocument,
         string BrandName,
-        [property: JsonConverter(typeof(ContractClassesConverter))] string Classes);
+        [property: JsonConverter(typeof(ContractClassesConverter))] string Classes,
+        string? BodyMarkdown,
+        string? MinimumTerm,
+        string? CompanyName,
+        string? Street,
+        string? Number,
+        string? City,
+        string? State,
+        string? ZipCode);
+
+    public sealed record SignContractRequest(string SignaturePngBase64);
 
     [Authorize(Policy = PermissionCodes.ContractsRead)]
     [HttpGet]
@@ -94,7 +104,15 @@ public sealed class ContractsController(ISender sender) : ControllerBase
                 request.CompanyDocument,
                 request.RepresentativeDocument,
                 request.BrandName,
-                request.Classes),
+                request.Classes,
+                request.BodyMarkdown,
+                request.MinimumTerm,
+                request.CompanyName,
+                request.Street,
+                request.Number,
+                request.City,
+                request.State,
+                request.ZipCode),
             cancellationToken));
 
     [Authorize(Policy = PermissionCodes.ContractsManage)]
@@ -104,13 +122,21 @@ public sealed class ContractsController(ISender sender) : ControllerBase
 
     [Authorize(Policy = PermissionCodes.ContractsSign)]
     [HttpPost("{id:guid}/sign")]
-    public async Task<IActionResult> Sign(Guid id, CancellationToken cancellationToken)
-        => Ok(await sender.Send(new SignContractCommand(id), cancellationToken));
+    public async Task<IActionResult> Sign(Guid id, [FromBody] SignContractRequest? request, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new SignContractCommand(id, request?.SignaturePngBase64 ?? string.Empty), cancellationToken));
 
     [Authorize(Policy = PermissionCodes.ContractsManage)]
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new CancelContractCommand(id), cancellationToken));
+
+    [Authorize(Policy = PermissionCodes.ContractsRead)]
+    [HttpGet("{id:guid}/preview")]
+    public async Task<IActionResult> Preview(Guid id, CancellationToken cancellationToken)
+    {
+        var file = await sender.Send(new PreviewContractQuery(id), cancellationToken);
+        return File(file.Content, file.ContentType, file.FileName);
+    }
 
     [Authorize(Policy = PermissionCodes.ContractsRead)]
     [HttpGet("{id:guid}/download")]

@@ -109,6 +109,30 @@ internal sealed class FakeJwtTokenService : IJwtTokenService
     public string HashToken(string rawToken) => $"hash:{rawToken}";
 }
 
+internal sealed class FakeContractDocumentGenerator : IContractDocumentGenerator
+{
+    public List<ContractDocumentModel> PdfModels { get; } = [];
+
+    public byte[] PdfBytes { get; set; } = "%PDF-1.7 fake"u8.ToArray();
+
+    public byte[] GeneratePdf(ContractDocumentModel model)
+    {
+        PdfModels.Add(model);
+        var stamp = model.ClientSignaturePng is { Length: > 0 } ? "signed"u8.ToArray() : "issued"u8.ToArray();
+        return [.. PdfBytes, .. stamp];
+    }
+
+    public byte[] GenerateWord(ContractDocumentModel model) => "PK"u8.ToArray();
+}
+
+internal sealed class FakeContractTemplateProvider : IContractTemplateProvider
+{
+    public string Template { get; set; } =
+        "Nome {{contratanteNome}} CNPJ {{cnpj}} Rua {{endereco}} {{numero}} {{cidade}}/{{uf}} CEP {{cep}} Marca {{marcaNome}} Classes {{quantidadeClasses}} Valor {{valor}} Periodo {{periodo}}";
+
+    public string GetTemplate(string templateKey) => Template;
+}
+
 internal sealed class InMemoryRepository : IGenericRepository
 {
     private readonly Dictionary<Type, List<Entity>> _sets = [];

@@ -25,6 +25,26 @@ public class Contract : Entity, ITenantScoped
 
     public decimal Amount { get; private set; }
 
+    public string TemplateKey { get; private set; } = ContractTemplateKeys.PrestacaoServicos;
+
+    public string BodyMarkdown { get; private set; } = string.Empty;
+
+    public string CompanyName { get; private set; } = string.Empty;
+
+    public string Street { get; private set; } = string.Empty;
+
+    public string Number { get; private set; } = string.Empty;
+
+    public string City { get; private set; } = string.Empty;
+
+    public string State { get; private set; } = string.Empty;
+
+    public string ZipCode { get; private set; } = string.Empty;
+
+    public string MinimumTerm { get; private set; } = ContractTemplateKeys.DefaultMinimumTerm;
+
+    public byte[]? ClientSignaturePng { get; private set; }
+
     public ContractStatus Status { get; private set; } = ContractStatus.PreIssued;
 
     public DateTime FormarcaSignedAt { get; private set; }
@@ -43,7 +63,16 @@ public class Contract : Entity, ITenantScoped
         string representativeDocument,
         string brandName,
         string classes,
-        decimal amount)
+        decimal amount,
+        string? templateKey = null,
+        string? bodyMarkdown = null,
+        string? companyName = null,
+        string? street = null,
+        string? number = null,
+        string? city = null,
+        string? state = null,
+        string? zipCode = null,
+        string? minimumTerm = null)
     {
         if (tenantId == Guid.Empty)
         {
@@ -76,6 +105,17 @@ public class Contract : Entity, ITenantScoped
             BrandName = brandName.Trim(),
             Classes = (classes ?? string.Empty).Trim(),
             Amount = amount,
+            TemplateKey = NormalizeTemplateKey(templateKey),
+            BodyMarkdown = bodyMarkdown ?? string.Empty,
+            CompanyName = TrimOrEmpty(companyName),
+            Street = TrimOrEmpty(street),
+            Number = TrimOrEmpty(number),
+            City = TrimOrEmpty(city),
+            State = NormalizeState(state),
+            ZipCode = BrazilianDocuments.DigitsOnly(zipCode),
+            MinimumTerm = string.IsNullOrWhiteSpace(minimumTerm)
+                ? ContractTemplateKeys.DefaultMinimumTerm
+                : minimumTerm.Trim(),
             Status = ContractStatus.PreIssued,
             FormarcaSignedAt = now,
             GeneratedAtUtc = now
@@ -87,7 +127,15 @@ public class Contract : Entity, ITenantScoped
         string representativeDocument,
         string brandName,
         string classes,
-        decimal amount)
+        decimal amount,
+        string? companyName = null,
+        string? street = null,
+        string? number = null,
+        string? city = null,
+        string? state = null,
+        string? zipCode = null,
+        string? minimumTerm = null,
+        string? bodyMarkdown = null)
     {
         EnsurePreIssued();
         ArgumentException.ThrowIfNullOrWhiteSpace(companyDocument);
@@ -104,21 +152,69 @@ public class Contract : Entity, ITenantScoped
         BrandName = brandName.Trim();
         Classes = (classes ?? string.Empty).Trim();
         Amount = amount;
+        if (companyName is not null)
+        {
+            CompanyName = TrimOrEmpty(companyName);
+        }
+
+        if (street is not null)
+        {
+            Street = TrimOrEmpty(street);
+        }
+
+        if (number is not null)
+        {
+            Number = TrimOrEmpty(number);
+        }
+
+        if (city is not null)
+        {
+            City = TrimOrEmpty(city);
+        }
+
+        if (state is not null)
+        {
+            State = NormalizeState(state);
+        }
+
+        if (zipCode is not null)
+        {
+            ZipCode = BrazilianDocuments.DigitsOnly(zipCode);
+        }
+
+        if (minimumTerm is not null)
+        {
+            MinimumTerm = string.IsNullOrWhiteSpace(minimumTerm)
+                ? ContractTemplateKeys.DefaultMinimumTerm
+                : minimumTerm.Trim();
+        }
+
+        if (bodyMarkdown is not null)
+        {
+            BodyMarkdown = bodyMarkdown;
+        }
+
         MarkUpdated();
     }
 
     public void Issue()
     {
         EnsurePreIssued();
+        EnsureReadyToIssue();
         Status = ContractStatus.Issued;
         MarkUpdated();
     }
 
-    public void SignByClient()
+    public void SignByClient(byte[]? signaturePng = null)
     {
         if (Status != ContractStatus.Issued)
         {
             throw new InvalidOperationException("Only issued contracts can be signed.");
+        }
+
+        if (signaturePng is { Length: > 0 })
+        {
+            ClientSignaturePng = signaturePng;
         }
 
         var now = Clock.Current.UtcNow;
@@ -141,6 +237,26 @@ public class Contract : Entity, ITenantScoped
 
     public bool CanDownload => Status is ContractStatus.Issued or ContractStatus.Signed;
 
+    public bool CanPreview => Status is ContractStatus.PreIssued or ContractStatus.Issued or ContractStatus.Signed;
+
+    public bool HasCompleteIssueFields =>
+        !string.IsNullOrWhiteSpace(CompanyName)
+        && !string.IsNullOrWhiteSpace(Street)
+        && !string.IsNullOrWhiteSpace(Number)
+        && !string.IsNullOrWhiteSpace(City)
+        && !string.IsNullOrWhiteSpace(State)
+        && !string.IsNullOrWhiteSpace(ZipCode)
+        && !string.IsNullOrWhiteSpace(CompanyDocument)
+        && !string.IsNullOrWhiteSpace(BrandName)
+        && !string.IsNullOrWhiteSpace(BodyMarkdown)
+        && !string.IsNullOrWhiteSpace(MinimumTerm);
+
+    public ContractFileKind PersistedFileKind => Status switch
+    {
+        ContractStatus.Signed => ContractFileKind.Signed,
+        _ => ContractFileKind.Issued
+    };
+
     private void EnsurePreIssued()
     {
         if (Status != ContractStatus.PreIssued)
@@ -148,4 +264,24 @@ public class Contract : Entity, ITenantScoped
             throw new InvalidOperationException("Only pre-issued contracts can be edited.");
         }
     }
+
+    private void EnsureReadyToIssue()
+    {
+        if (!HasCompleteIssueFields)
+        {
+            throw new InvalidOperationException(
+                "Contract cannot be issued until company name, address, period, and body are complete.");
+        }
+    }
+
+    private static string NormalizeTemplateKey(string? templateKey) =>
+        string.IsNullOrWhiteSpace(templateKey)
+            ? ContractTemplateKeys.PrestacaoServicos
+            : templateKey.Trim().ToLowerInvariant();
+
+    private static string TrimOrEmpty(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+
+    private static string NormalizeState(string? state) =>
+        string.IsNullOrWhiteSpace(state) ? string.Empty : state.Trim().ToUpperInvariant();
 }

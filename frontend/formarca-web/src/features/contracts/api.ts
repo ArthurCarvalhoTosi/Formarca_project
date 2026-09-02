@@ -1,11 +1,13 @@
 import { mockFunnel } from '@/features/funnel/mockStore'
-import { apiDownload, apiRequest, triggerBlobDownload } from '@/shared/api/client'
+import { apiDownload, apiFetchBlob, apiRequest, triggerBlobDownload } from '@/shared/api/client'
 import { asList, toQuery } from '@/shared/api/types'
 import { env } from '@/shared/config/env'
+import { unwrapPngBase64 } from './signature'
 import type {
   Contract,
   ContractListFilters,
   PreIssueContractRequest,
+  SignContractRequest,
   UpdateContractRequest,
 } from './types'
 
@@ -65,20 +67,27 @@ export const contractsApi = {
     return apiRequest<Contract>(`/api/contracts/${id}/issue`, { method: 'POST' })
   },
 
-  async sign(id: string): Promise<Contract> {
-    if (env.mockAuth) return mockFunnel.signContract(id)
-    return apiRequest<Contract>(`/api/contracts/${id}/sign`, { method: 'POST' })
+  async sign(id: string, payload: SignContractRequest): Promise<Contract> {
+    const signaturePngBase64 = unwrapPngBase64(payload.signaturePngBase64)
+    if (env.mockAuth) return mockFunnel.signContract(id, { signaturePngBase64 })
+    return apiRequest<Contract>(`/api/contracts/${id}/sign`, {
+      method: 'POST',
+      body: { signaturePngBase64 },
+    })
   },
 
-  async download(id: string, format: 'pdf' | 'docx'): Promise<void> {
+  async preview(id: string): Promise<Blob> {
+    if (env.mockAuth) return mockFunnel.previewContract(id)
+    const file = await apiFetchBlob(`/api/contracts/${id}/preview`, 'application/pdf')
+    return file.blob
+  },
+
+  async download(id: string): Promise<void> {
     if (env.mockAuth) {
-      const file = mockFunnel.downloadContract(id, format)
+      const file = mockFunnel.downloadContract(id)
       triggerBlobDownload(file.blob, file.filename)
       return
     }
-    await apiDownload(
-      `/api/contracts/${id}/download${toQuery({ format })}`,
-      `contract.${format}`,
-    )
+    await apiDownload(`/api/contracts/${id}/download?format=pdf`, 'contract.pdf')
   },
 }

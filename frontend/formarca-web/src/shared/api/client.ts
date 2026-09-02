@@ -168,8 +168,17 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url)
 }
 
-export async function apiDownload(path: string, filename: string): Promise<void> {
-  const requestHeaders: Record<string, string> = { Accept: '*/*' }
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null
+  const matched = header.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i)
+  return matched ? decodeURIComponent(matched[1].replaceAll('"', '')) : null
+}
+
+export async function apiFetchBlob(
+  path: string,
+  accept = '*/*',
+): Promise<{ blob: Blob; filename: string | null }> {
+  const requestHeaders: Record<string, string> = { Accept: accept }
   const accessToken = tokenStorage.getAccessToken()
   if (accessToken) {
     requestHeaders.Authorization = `Bearer ${accessToken}`
@@ -180,10 +189,25 @@ export async function apiDownload(path: string, filename: string): Promise<void>
   }
 
   const url = path.startsWith('http') ? path : `${env.apiUrl}${path}`
-  const response = await fetch(url, { headers: requestHeaders })
-  const parsed = await parseBody(response.clone())
+  let response = await fetch(url, { headers: requestHeaders })
+
+  if (response.status === 401 && !isActiveMockSession()) {
+    const newToken = await getOrRefreshAccessToken()
+    if (newToken) {
+      requestHeaders.Authorization = `Bearer ${newToken}`
+      response = await fetch(url, { headers: requestHeaders })
+    } else {
+      onUnauthorized?.()
+      const errBody = await parseBody(response)
+      throw new ApiError(401, parseApiErrorBody(errBody, 'Sessão expirada'), errBody)
+    }
+  }
 
   if (!response.ok) {
+    if (response.status === 401 && !isActiveMockSession()) {
+      onUnauthorized?.()
+    }
+    const parsed = await parseBody(response)
     throw new ApiError(
       response.status,
       parseApiErrorBody(parsed, `Erro HTTP ${response.status}`),
@@ -191,8 +215,13 @@ export async function apiDownload(path: string, filename: string): Promise<void>
     )
   }
 
-  const headerName = response.headers.get('Content-Disposition')
-  const matched = headerName?.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i)
-  const downloadName = matched ? decodeURIComponent(matched[1].replaceAll('"', '')) : filename
-  triggerBlobDownload(await response.blob(), downloadName)
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response.headers.get('Content-Disposition')),
+  }
+}
+
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const file = await apiFetchBlob(path)
+  triggerBlobDownload(file.blob, file.filename ?? filename)
 }

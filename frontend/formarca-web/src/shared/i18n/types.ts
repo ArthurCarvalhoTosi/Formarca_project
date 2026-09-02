@@ -326,6 +326,14 @@ export type Dictionary = {
     signFailed: string
     signConfirmTitle: string
     signConfirmContent: string
+    signHere: string
+    signHint: string
+    clearSignature: string
+    signatureRequired: string
+    contractorSignLabel: string
+    previewTitle: string
+    previewFailed: string
+    legalTextHint: string
     downloadPdf: string
     downloadWord: string
     downloadFailed: string
@@ -358,12 +366,20 @@ export type Dictionary = {
     }
     fields: {
       code: string
+      companyName: string
       companyDocument: string
       representativeDocument: string
       brandName: string
       classes: string
       amount: string
       status: string
+      street: string
+      number: string
+      city: string
+      state: string
+      zipCode: string
+      minimumTerm: string
+      bodyMarkdown: string
     }
     status: {
       PreIssued: string

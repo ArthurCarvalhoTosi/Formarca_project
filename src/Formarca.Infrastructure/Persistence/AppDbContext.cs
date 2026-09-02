@@ -70,6 +70,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
 
     public DbSet<Contract> Contracts => Set<Contract>();
 
+    public DbSet<ContractFile> ContractFiles => Set<ContractFile>();
+
     public DbSet<InvoiceSettings> InvoiceSettings => Set<InvoiceSettings>();
 
     public DbSet<Invoice> Invoices => Set<Invoice>();

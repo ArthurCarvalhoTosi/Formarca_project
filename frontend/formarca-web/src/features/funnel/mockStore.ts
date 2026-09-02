@@ -6,12 +6,16 @@ import {
   PRE_ISSUE_COMPANY_DOCUMENT_REQUIRED,
   PRE_ISSUE_REPRESENTATIVE_DOCUMENT_REQUIRED,
 } from '@/features/brands/preIssueError'
+import { buildContractPdf } from '@/features/contracts/mockPdf'
+import { unwrapPngBase64 } from '@/features/contracts/signature'
 import type {
   Contract,
   ContractListFilters,
   PreIssueContractRequest,
+  SignContractRequest,
   UpdateContractRequest,
 } from '@/features/contracts/types'
+import { DEFAULT_MINIMUM_TERM, DEFAULT_TEMPLATE_KEY } from '@/features/contracts/types'
 import type {
   ApproveInvoiceRequest,
   Invoice,
@@ -48,6 +52,117 @@ const brands: Brand[] = [
   },
 ]
 
+function formatBrl(amount: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount)
+}
+
+function mergedBodyMarkdown(input: {
+  companyName: string
+  companyDocument: string
+  street: string
+  number: string
+  city: string
+  state: string
+  zipCode: string
+  brandName: string
+  classes: number[] | string
+  amount: number
+  minimumTerm: string
+}): string {
+  const classes = parseClasses(input.classes)
+  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
+
+Pelo presente instrumento particular, de um lado FOR MARCA LTDA, inscrita no CNPJ 62.500.545/0001-14, com sede na Av. Wilma Ritter Beiser, 4870, Cachoeirinha, RS, CEP 94931-130, doravante denominada CONTRATADA, e de outro lado ${input.companyName}, inscrita no CNPJ ${input.companyDocument}, com endereço na ${input.street}, nº ${input.number}, ${input.city}/${input.state}, CEP ${input.zipCode}, doravante denominada CONTRATANTE, têm entre si justo e contratado o seguinte:
+
+1. OBJETO
+A CONTRATADA prestará serviços de registro de marca referentes a "${input.brandName}", abrangendo ${classes.length} classe(s) (${classes.join(', ')}), pelo valor de ${formatBrl(input.amount)}.
+
+2. PRAZO
+O prazo mínimo de vigência deste contrato é de ${input.minimumTerm}.
+
+3. PREÇO E PAGAMENTO
+O valor total dos serviços é de ${formatBrl(input.amount)}, a ser pago nas condições da fatura emitida após a assinatura deste instrumento.
+
+4. OBRIGAÇÕES DA CONTRATADA
+Executar os serviços com diligência, manter a CONTRATANTE informada e observar a legislação aplicável ao registro de marcas.
+
+5. OBRIGAÇÕES DA CONTRATANTE
+Fornecer documentos, informações e procurações necessárias, bem como efetuar os pagamentos nas datas acordadas.
+
+6. RESCISÃO
+O presente contrato poderá ser rescindido nas hipóteses legais, persistindo as obrigações já vencidas.
+
+7. FORO
+Fica eleito o foro da comarca de Cachoeirinha/RS para dirimir quaisquer controvérsias oriundas deste contrato.
+
+8. DISPOSIÇÕES GERAIS
+Este instrumento substitui entendimentos anteriores sobre o mesmo objeto.
+`
+}
+
+function documentSnapshot(tenantId: string, extras: {
+  companyDocument: string
+  brandName: string
+  classes: number[] | string
+  amount: number
+}): Pick<
+  Contract,
+  | 'templateKey'
+  | 'bodyMarkdown'
+  | 'companyName'
+  | 'street'
+  | 'number'
+  | 'city'
+  | 'state'
+  | 'zipCode'
+  | 'minimumTerm'
+> {
+  const tenant = mockGetTenantRecord(tenantId)
+  const companyName = tenant?.name ?? ''
+  const street = tenant?.address.street ?? ''
+  const number = tenant?.address.number ?? ''
+  const city = tenant?.address.city ?? ''
+  const state = tenant?.address.state ?? ''
+  const zipCode = tenant?.address.zipCode ?? ''
+  const minimumTerm = DEFAULT_MINIMUM_TERM
+  return {
+    templateKey: DEFAULT_TEMPLATE_KEY,
+    companyName,
+    street,
+    number,
+    city,
+    state,
+    zipCode,
+    minimumTerm,
+    bodyMarkdown: mergedBodyMarkdown({
+      companyName,
+      companyDocument: extras.companyDocument,
+      street,
+      number,
+      city,
+      state,
+      zipCode,
+      brandName: extras.brandName,
+      classes: extras.classes,
+      amount: extras.amount,
+      minimumTerm,
+    }),
+  }
+}
+
+function hasCompleteSnapshot(contract: Contract): boolean {
+  return Boolean(
+    contract.companyName?.trim() &&
+      contract.street?.trim() &&
+      contract.number?.trim() &&
+      contract.city?.trim() &&
+      contract.state?.trim() &&
+      contract.zipCode?.trim() &&
+      contract.minimumTerm?.trim() &&
+      contract.bodyMarkdown?.trim(),
+  )
+}
+
 const contracts: Contract[] = [
   {
     id: 'mock-contract-demo',
@@ -66,6 +181,13 @@ const contracts: Contract[] = [
     generatedAtUtc: '2026-01-10T12:00:00.000Z',
     signedAtUtc: '2026-01-12T15:00:00.000Z',
     invoiceId: 'mock-invoice-demo',
+    clientSignaturePng: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    ...documentSnapshot(MOCK_TENANTS[0].id, {
+      companyDocument: '39053344705',
+      brandName: 'Demo Marcas',
+      classes: [35, 41],
+      amount: 15000,
+    }),
   },
   {
     id: 'mock-contract-acme',
@@ -84,6 +206,36 @@ const contracts: Contract[] = [
     generatedAtUtc: '2026-02-01T12:00:00.000Z',
     signedAtUtc: null,
     invoiceId: null,
+    ...documentSnapshot(MOCK_TENANTS[1].id, {
+      companyDocument: '12345678000195',
+      brandName: 'Acme',
+      classes: [25, 35],
+      amount: 8500,
+    }),
+  },
+  {
+    id: 'mock-contract-draft',
+    code: 'FM-2026-000003',
+    tenantId: MOCK_TENANTS[0].id,
+    tenantName: MOCK_TENANTS[0].name,
+    brandId: 'mock-brand-demo',
+    companyDocument: '39053344705',
+    representativeDocument: '39053344705',
+    brandName: 'Demo Marcas',
+    classes: [35, 41],
+    amount: 15000,
+    status: 'PreIssued',
+    formarcaSignedAt: '2026-03-01T12:00:00.000Z',
+    clientSignedAt: null,
+    generatedAtUtc: '2026-03-01T12:00:00.000Z',
+    signedAtUtc: null,
+    invoiceId: null,
+    ...documentSnapshot(MOCK_TENANTS[0].id, {
+      companyDocument: '39053344705',
+      brandName: 'Demo Marcas',
+      classes: [35, 41],
+      amount: 15000,
+    }),
   },
 ]
 
@@ -156,8 +308,10 @@ function clone<T>(value: T): T {
 
 function enrichContract(contract: Contract): Contract {
   const invoice = invoices.find((item) => item.contractId === contract.id)
+  const copy: Contract = { ...contract }
+  delete copy.clientSignaturePng
   return {
-    ...contract,
+    ...copy,
     classes: Array.isArray(contract.classes)
       ? [...contract.classes]
       : contract.classes,
@@ -322,6 +476,9 @@ export const mockFunnel = {
       throw new ApiError(409, PRE_ISSUE_REPRESENTATIVE_DOCUMENT_REQUIRED)
     }
     const now = new Date().toISOString()
+    const brandName = payload.brandName || brand.name
+    const classes = payload.classes ?? [...brand.inpiClasses]
+    const amount = payload.amount ?? tenant.quotedAmount ?? 0
     const contract: Contract = {
       id: crypto.randomUUID(),
       code: generateContractCode(),
@@ -330,15 +487,21 @@ export const mockFunnel = {
       brandId: brand.id,
       companyDocument,
       representativeDocument,
-      brandName: payload.brandName || brand.name,
-      classes: payload.classes ?? [...brand.inpiClasses],
-      amount: payload.amount ?? tenant.quotedAmount ?? 0,
+      brandName,
+      classes,
+      amount,
       status: 'PreIssued',
       formarcaSignedAt: now,
       clientSignedAt: null,
       generatedAtUtc: now,
       signedAtUtc: null,
       invoiceId: null,
+      ...documentSnapshot(brand.tenantId, {
+        companyDocument,
+        brandName,
+        classes,
+        amount,
+      }),
     }
     contracts.push(contract)
     return enrichContract(contract)
@@ -354,8 +517,18 @@ export const mockFunnel = {
     contract.companyDocument = payload.companyDocument
     contract.representativeDocument = payload.representativeDocument
     contract.brandName = payload.brandName
-    contract.classes = [...payload.classes]
+    contract.classes = Array.isArray(payload.classes)
+      ? [...payload.classes]
+      : payload.classes
     contract.amount = payload.amount
+    if (payload.bodyMarkdown != null) contract.bodyMarkdown = payload.bodyMarkdown
+    if (payload.companyName != null) contract.companyName = payload.companyName
+    if (payload.street != null) contract.street = payload.street
+    if (payload.number != null) contract.number = payload.number
+    if (payload.city != null) contract.city = payload.city
+    if (payload.state != null) contract.state = payload.state
+    if (payload.zipCode != null) contract.zipCode = payload.zipCode
+    if (payload.minimumTerm != null) contract.minimumTerm = payload.minimumTerm
     return enrichContract(contract)
   },
 
@@ -366,17 +539,28 @@ export const mockFunnel = {
     if (contract.status !== 'PreIssued') {
       throw new ApiError(409, 'Only pre-issued contracts can be issued')
     }
+    if (!hasCompleteSnapshot(contract)) {
+      throw new ApiError(
+        409,
+        'Contract cannot be issued until company name, address, period, and body are complete.',
+      )
+    }
     contract.status = 'Issued'
     return enrichContract(contract)
   },
 
-  signContract(id: string): Contract {
+  signContract(id: string, payload: SignContractRequest): Contract {
     const contract = contracts.find((item) => item.id === id)
     if (!contract) throw new ApiError(404, 'Contract not found')
     assertContractScope(contract)
     if (contract.status !== 'Issued') {
       throw new ApiError(409, 'Only issued contracts can be signed')
     }
+    const signaturePngBase64 = unwrapPngBase64(payload.signaturePngBase64)
+    if (!signaturePngBase64) {
+      throw new ApiError(400, 'Signature image is required')
+    }
+    contract.clientSignaturePng = signaturePngBase64
     const now = new Date().toISOString()
     contract.status = 'Signed'
     contract.clientSignedAt = now
@@ -401,25 +585,33 @@ export const mockFunnel = {
     return enrichContract(contract)
   },
 
-  downloadContract(id: string, format: 'pdf' | 'docx'): { blob: Blob; filename: string } {
-    const contract = this.getContract(id)
-    const classes = parseClasses(contract.classes).join(', ')
-    const body = [
-      `Formarca contract ${contract.code}`,
-      `Brand: ${contract.brandName}`,
-      `CNPJ: ${contract.companyDocument}`,
-      `CPF: ${contract.representativeDocument}`,
-      `Classes: ${classes}`,
-      `Amount: ${contract.amount}`,
-      `Status: ${contract.status}`,
-    ].join('\n')
-    const mime =
-      format === 'pdf'
-        ? 'application/pdf'
-        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  previewContract(id: string): Blob {
+    const contract = contracts.find((item) => item.id === id)
+    if (!contract) throw new ApiError(404, 'Contract not found')
+    assertContractScope(contract)
+    if (
+      contract.status !== 'PreIssued' &&
+      contract.status !== 'Issued' &&
+      contract.status !== 'Signed'
+    ) {
+      throw new ApiError(
+        409,
+        'Contract preview is available for pre-issued, issued, or signed contracts.',
+      )
+    }
+    return buildContractPdf(contract)
+  },
+
+  downloadContract(id: string): { blob: Blob; filename: string } {
+    const contract = contracts.find((item) => item.id === id)
+    if (!contract) throw new ApiError(404, 'Contract not found')
+    assertContractScope(contract)
+    if (contract.status !== 'Issued' && contract.status !== 'Signed') {
+      throw new ApiError(409, 'Contract download is available after issuance.')
+    }
     return {
-      blob: new Blob([body], { type: mime }),
-      filename: `${contract.code}.${format === 'pdf' ? 'pdf' : 'docx'}`,
+      blob: buildContractPdf(contract),
+      filename: `${contract.code}.pdf`,
     }
   },
 

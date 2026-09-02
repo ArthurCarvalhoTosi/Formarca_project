@@ -21,6 +21,17 @@ export type Contract = {
   paidAmount?: number | null
   paymentMethod?: PaymentMethod | null
   invoiceId?: string | null
+  templateKey?: string | null
+  bodyMarkdown?: string | null
+  companyName?: string | null
+  street?: string | null
+  number?: string | null
+  city?: string | null
+  state?: string | null
+  zipCode?: string | null
+  minimumTerm?: string | null
+  /** GET payloads may omit the PNG; do not rely on this field in the UI. */
+  clientSignaturePng?: string | null
 }
 
 export type ContractListFilters = {
@@ -46,6 +57,21 @@ export type UpdateContractRequest = {
   companyDocument: string
   representativeDocument: string
   brandName: string
-  classes: number[]
+  classes: number[] | string
   amount: number
+  bodyMarkdown?: string | null
+  companyName?: string | null
+  street?: string | null
+  number?: string | null
+  city?: string | null
+  state?: string | null
+  zipCode?: string | null
+  minimumTerm?: string | null
 }
+
+export type SignContractRequest = {
+  signaturePngBase64: string
+}
+
+export const DEFAULT_MINIMUM_TERM = '12 (doze) meses'
+export const DEFAULT_TEMPLATE_KEY = 'prestacao-servicos'

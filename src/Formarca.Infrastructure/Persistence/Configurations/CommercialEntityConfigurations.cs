@@ -47,6 +47,16 @@ public sealed class ContractConfiguration : IEntityTypeConfiguration<Contract>
         builder.Property(x => x.BrandName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Classes).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Amount).HasPrecision(18, 2);
+        builder.Property(x => x.TemplateKey).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.BodyMarkdown).HasColumnType("nvarchar(max)").IsRequired();
+        builder.Property(x => x.CompanyName).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.Street).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.Number).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.City).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.State).HasMaxLength(2).IsRequired();
+        builder.Property(x => x.ZipCode).HasMaxLength(8).IsRequired();
+        builder.Property(x => x.MinimumTerm).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.ClientSignaturePng).HasColumnType("varbinary(max)");
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.BrandId);
         builder.HasIndex(x => x.Code)
@@ -54,6 +64,27 @@ public sealed class ContractConfiguration : IEntityTypeConfiguration<Contract>
             .HasFilter("[IsDeleted] = 0");
         builder.Ignore(x => x.DomainEvents);
         builder.Ignore(x => x.CanDownload);
+        builder.Ignore(x => x.CanPreview);
+        builder.Ignore(x => x.HasCompleteIssueFields);
+        builder.Ignore(x => x.PersistedFileKind);
+    }
+}
+
+public sealed class ContractFileConfiguration : IEntityTypeConfiguration<ContractFile>
+{
+    public void Configure(EntityTypeBuilder<ContractFile> builder)
+    {
+        builder.ToTable("ContractFiles");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.FileName).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.Content).HasColumnType("varbinary(max)").IsRequired();
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.ContractId);
+        builder.HasIndex(x => new { x.ContractId, x.Kind })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+        builder.Ignore(x => x.DomainEvents);
     }
 }
 

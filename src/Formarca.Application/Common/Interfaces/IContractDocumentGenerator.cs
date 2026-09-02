@@ -10,11 +10,26 @@ public sealed record ContractDocumentModel(
     DateTime GeneratedAtUtc,
     DateTime FormarcaSignedAt,
     DateTime? ClientSignedAt,
-    string Status);
+    string Status,
+    string CompanyName,
+    string Street,
+    string Number,
+    string City,
+    string State,
+    string ZipCode,
+    string MinimumTerm,
+    string BodyMarkdown,
+    byte[]? ClientSignaturePng,
+    bool StampFormarcaSignature);
 
 public interface IContractDocumentGenerator
 {
     byte[] GeneratePdf(ContractDocumentModel model);
 
     byte[] GenerateWord(ContractDocumentModel model);
+}
+
+public interface IContractTemplateProvider
+{
+    string GetTemplate(string templateKey);
 }

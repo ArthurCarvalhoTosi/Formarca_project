@@ -1,3 +1,4 @@
+using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Contracts.Queries;
 using Formarca.Domain.Brands;
@@ -61,6 +62,87 @@ public class ContractQueryTests
             new ListContractsQuery(null, null, null, null, null, null, null, null, from, to),
             CancellationToken.None);
         Assert.Equal(2, byDates.Items.Count);
+    }
+
+    [Fact]
+    public async Task Preview_Returns_Pdf_For_PreIssued()
+    {
+        var repository = Seed();
+        var contract = repository.Query<Contract>().Single(c => c.Code == "FM-2026-000001");
+        var documents = new FakeContractDocumentGenerator();
+        var handler = new PreviewContractQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            repository,
+            new FakeTenantContext(),
+            documents);
+
+        var file = await handler.Handle(new PreviewContractQuery(contract.Id), CancellationToken.None);
+
+        Assert.Equal("application/pdf", file.ContentType);
+        Assert.Contains("preview.pdf", file.FileName);
+        Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(file.Content));
+        Assert.True(documents.PdfModels[0].StampFormarcaSignature);
+    }
+
+    [Fact]
+    public async Task Download_Returns_Persisted_Pdf_Only()
+    {
+        var repository = Seed();
+        var contract = repository.Query<Contract>().Single(c => c.Code == "FM-2026-000001");
+        contract.UpdateSnapshot(
+            contract.CompanyDocument,
+            contract.RepresentativeDocument,
+            contract.BrandName,
+            contract.Classes,
+            contract.Amount,
+            "Acme Ltd",
+            "Av Paulista",
+            "100",
+            "São Paulo",
+            "SP",
+            "01310100",
+            ContractTemplateKeys.DefaultMinimumTerm,
+            "# Contrato");
+        contract.Issue();
+        repository.Add(ContractFile.CreatePdf(
+            contract.TenantId,
+            contract.Id,
+            ContractFileKind.Issued,
+            $"{contract.Code}.pdf",
+            "%PDF-issued-persisted"u8.ToArray()));
+
+        var documents = new FakeContractDocumentGenerator();
+        var handler = new DownloadContractQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            repository,
+            new FakeTenantContext(),
+            documents);
+
+        var file = await handler.Handle(new DownloadContractQuery(contract.Id, "pdf"), CancellationToken.None);
+
+        Assert.Equal("application/pdf", file.ContentType);
+        Assert.Equal("%PDF-issued-persisted", System.Text.Encoding.ASCII.GetString(file.Content));
+        Assert.Empty(documents.PdfModels);
+
+        var docx = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(new DownloadContractQuery(contract.Id, "docx"), CancellationToken.None));
+        Assert.Contains("PDF only", docx.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Preview_Rejected_When_Cancelled()
+    {
+        var repository = Seed();
+        var contract = repository.Query<Contract>().Single(c => c.Code == "FM-2026-000001");
+        contract.Cancel();
+        var handler = new PreviewContractQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            repository,
+            new FakeTenantContext(),
+            new FakeContractDocumentGenerator());
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(new PreviewContractQuery(contract.Id), CancellationToken.None));
     }
 
     private static IGenericRepository Seed()

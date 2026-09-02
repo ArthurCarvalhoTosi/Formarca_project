@@ -2,6 +2,7 @@ using Formarca.Application.Common;
 using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
+using Formarca.Application.Contracts;
 using Formarca.Domain.Contracts;
 using Formarca.Domain.Tenancy;
 using MediatR;
@@ -138,6 +139,31 @@ public sealed class GetContractByIdQueryHandler(
     }
 }
 
+public sealed record PreviewContractQuery(Guid Id) : IRequest<ContractDocumentFile>;
+
+public sealed class PreviewContractQueryHandler(
+    ICurrentUser currentUser,
+    IGenericRepository repository,
+    ITenantContext tenantContext,
+    IContractDocumentGenerator documents) : IRequestHandler<PreviewContractQuery, ContractDocumentFile>
+{
+    public async Task<ContractDocumentFile> Handle(PreviewContractQuery request, CancellationToken cancellationToken)
+    {
+        CommercialAccess.IgnoreTenantFiltersIfAdmin(tenantContext, currentUser);
+        var contract = await repository.FirstOrDefaultAsync<Contract>(
+            c => c.Id == request.Id && !c.IsDeleted, cancellationToken)
+            ?? throw new NotFoundException("Contract not found.");
+
+        if (!contract.CanPreview)
+        {
+            throw new ConflictException("Contract preview is available for pre-issued, issued, or signed contracts.");
+        }
+
+        var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
+        return new ContractDocumentFile($"{contract.Code}-preview.pdf", "application/pdf", pdf);
+    }
+}
+
 public sealed record DownloadContractQuery(Guid Id, string Format) : IRequest<ContractDocumentFile>;
 
 public sealed class DownloadContractQueryHandler(
@@ -159,26 +185,29 @@ public sealed class DownloadContractQueryHandler(
         }
 
         var format = (request.Format ?? "pdf").Trim().ToLowerInvariant();
-        var model = new ContractDocumentModel(
-            contract.Code,
-            contract.CompanyDocument,
-            contract.RepresentativeDocument,
-            contract.BrandName,
-            contract.Classes,
-            contract.Amount,
-            contract.GeneratedAtUtc,
-            contract.FormarcaSignedAt,
-            contract.ClientSignedAt,
-            contract.Status.ToString());
-
-        return format switch
+        if (format is "docx" or "word" or "doc")
         {
-            "pdf" => new ContractDocumentFile($"{contract.Code}.pdf", "application/pdf", documents.GeneratePdf(model)),
-            "docx" or "word" or "doc" => new ContractDocumentFile(
-                $"{contract.Code}.docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                documents.GenerateWord(model)),
-            _ => throw new ConflictException("Unsupported document format. Use pdf or docx.")
-        };
+            throw new ConflictException("Download is available as PDF only.");
+        }
+
+        if (format is not "pdf" and not "")
+        {
+            throw new ConflictException("Unsupported document format. Use pdf.");
+        }
+
+        var kind = contract.PersistedFileKind;
+        var file = await repository.FirstOrDefaultAsync<ContractFile>(
+            f => f.ContractId == contract.Id && f.Kind == kind && !f.IsDeleted,
+            cancellationToken);
+
+        if (file is null)
+        {
+            var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
+            await ContractDocuments.UpsertPdfAsync(repository, contract, kind, pdf, cancellationToken);
+            await repository.CommitAsync(cancellationToken);
+            return new ContractDocumentFile($"{contract.Code}.pdf", "application/pdf", pdf);
+        }
+
+        return new ContractDocumentFile(file.FileName, file.ContentType, file.Content);
     }
 }

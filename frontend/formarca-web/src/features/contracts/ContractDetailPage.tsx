@@ -1,17 +1,42 @@
-import { Alert, App, Button, Card, Form, Input, InputNumber, Select, Space, Spin, Tag, Typography } from 'antd'
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+} from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, type ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NICE_CLASSES } from '@/features/brands/types'
 import { PayInvoicePanel } from '@/features/invoices/PayInvoicePanel'
-import { maskCpf, maskTaxId } from '@/features/registration/masks'
-import { isValidCpf, isValidTaxId, onlyDigits } from '@/features/registration/validation'
+import { maskCpf, maskTaxId, maskZipCode } from '@/features/registration/masks'
+import {
+  isBrazilUf,
+  isValidCpf,
+  isValidTaxId,
+  isValidZipCode,
+  onlyDigits,
+} from '@/features/registration/validation'
 import { ApiError, getApiErrorMessage } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
-import { useI18n } from '@/shared/i18n'
+import { BRAZIL_UFS, useI18n } from '@/shared/i18n'
 import { formatDate, parseClasses } from '@/shared/money'
 import { contractsApi } from './api'
-import type { UpdateContractRequest } from './types'
-import type { ChangeEvent } from 'react'
+import { PdfPreview } from './PdfPreview'
+import { SignaturePad } from './SignaturePad'
+import { DEFAULT_MINIMUM_TERM, type UpdateContractRequest } from './types'
+
+const PREVIEWABLE_STATUSES = new Set(['PreIssued', 'Issued', 'Signed'])
 
 function statusColor(status?: string) {
   switch (status) {
@@ -28,19 +53,41 @@ function statusColor(status?: string) {
   }
 }
 
+function isFormValidationError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'errorFields' in error)
+}
+
+function toUpdatePayload(values: UpdateContractRequest): UpdateContractRequest {
+  return {
+    ...values,
+    companyDocument: onlyDigits(values.companyDocument),
+    representativeDocument: onlyDigits(values.representativeDocument),
+    zipCode: onlyDigits(values.zipCode ?? ''),
+    state: (values.state ?? '').trim().toUpperCase(),
+  }
+}
+
 export function ContractDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { t, locale, dict } = useI18n()
-  const { message, modal } = App.useApp()
+  const { message } = App.useApp()
   const navigate = useNavigate()
-  const { isPlatformAdmin } = useAuth()
+  const { isPlatformAdmin, user } = useAuth()
   const queryClient = useQueryClient()
   const [form] = Form.useForm<UpdateContractRequest>()
+  const [signaturePng, setSignaturePng] = useState<string | null>(null)
 
   const query = useQuery({
     queryKey: ['contracts', id],
     queryFn: () => contractsApi.get(id!),
     enabled: Boolean(id),
+  })
+
+  const canPreview = Boolean(id) && PREVIEWABLE_STATUSES.has(query.data?.status ?? '')
+  const previewQuery = useQuery({
+    queryKey: ['contracts', id, 'preview'],
+    queryFn: () => contractsApi.preview(id!),
+    enabled: canPreview,
   })
 
   const invalidate = async () => {
@@ -53,11 +100,7 @@ export function ContractDetailPage() {
 
   const updateMutation = useMutation({
     mutationFn: (values: UpdateContractRequest) =>
-      contractsApi.update(id!, {
-        ...values,
-        companyDocument: onlyDigits(values.companyDocument),
-        representativeDocument: onlyDigits(values.representativeDocument),
-      }),
+      contractsApi.update(id!, toUpdatePayload(values)),
     onSuccess: async () => {
       await invalidate()
       message.success(t('contracts.saveSuccess'))
@@ -65,19 +108,26 @@ export function ContractDetailPage() {
   })
 
   const issueMutation = useMutation({
-    mutationFn: () => contractsApi.issue(id!),
+    mutationFn: async () => {
+      const values = await form.validateFields()
+      await contractsApi.update(id!, toUpdatePayload(values))
+      return contractsApi.issue(id!)
+    },
     onSuccess: async () => {
       await invalidate()
       message.success(t('contracts.issueSuccess'))
     },
     onError: (error) => {
+      if (isFormValidationError(error)) return
       message.error(getApiErrorMessage(error, t('contracts.issueFailed')))
     },
   })
 
   const signMutation = useMutation({
-    mutationFn: () => contractsApi.sign(id!),
+    mutationFn: (signaturePngBase64: string) =>
+      contractsApi.sign(id!, { signaturePngBase64 }),
     onSuccess: async () => {
+      setSignaturePng(null)
       await invalidate()
       message.success(t('contracts.signSuccess'))
     },
@@ -87,7 +137,7 @@ export function ContractDetailPage() {
   })
 
   const downloadMutation = useMutation({
-    mutationFn: (format: 'pdf' | 'docx') => contractsApi.download(id!, format),
+    mutationFn: () => contractsApi.download(id!),
     onError: (error) => {
       message.error(getApiErrorMessage(error, t('contracts.downloadFailed')))
     },
@@ -115,12 +165,15 @@ export function ContractDetailPage() {
   const contract = query.data
   const canEdit = contract.status === 'PreIssued' && isPlatformAdmin
   const canIssue = contract.status === 'PreIssued' && isPlatformAdmin
-  const canSign = contract.status === 'Issued'
+  const canSign =
+    contract.status === 'Issued' &&
+    (isPlatformAdmin || (user?.permissions ?? []).includes('contracts.sign'))
   const canDownload = contract.status === 'Issued' || contract.status === 'Signed'
   const statusLabel =
     contract.status in dict.contracts.status
       ? dict.contracts.status[contract.status as keyof typeof dict.contracts.status]
       : contract.status
+  const required = { required: true, message: t('validation.required') }
 
   return (
     <div>
@@ -143,7 +196,9 @@ export function ContractDetailPage() {
         {contract.clientSignedAt ? t('contracts.signed') : t('contracts.notSigned')}
       </Typography.Paragraph>
 
-      {updateMutation.isError || issueMutation.isError || signMutation.isError ? (
+      {(updateMutation.isError ||
+        (issueMutation.isError && !isFormValidationError(issueMutation.error)) ||
+        signMutation.isError) ? (
         <Alert
           type="error"
           showIcon
@@ -158,93 +213,266 @@ export function ContractDetailPage() {
         />
       ) : null}
 
-      <Card style={{ marginBottom: 16 }}>
-        <Form<UpdateContractRequest>
-          form={form}
-          layout="vertical"
-          disabled={!canEdit}
-          initialValues={{
-            companyDocument: maskTaxId(contract.companyDocument),
-            representativeDocument: maskCpf(contract.representativeDocument),
-            brandName: contract.brandName,
-            classes: parseClasses(contract.classes),
-            amount: contract.amount,
-          }}
-          onFinish={(values) => {
-            void updateMutation.mutateAsync(values)
-          }}
-        >
-          <Form.Item
-            label={t('contracts.fields.companyDocument')}
-            name="companyDocument"
-            getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
-              maskTaxId(event.target.value)
-            }
-            rules={[
-              { required: true, message: t('validation.required') },
-              {
-                validator: (_, value: string) =>
-                  isValidTaxId(value ?? '')
-                    ? Promise.resolve()
-                    : Promise.reject(new Error(t('validation.taxId'))),
-              },
-            ]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label={t('contracts.fields.representativeDocument')}
-            name="representativeDocument"
-            getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
-              maskCpf(event.target.value)
-            }
-            rules={[
-              { required: true, message: t('validation.required') },
-              {
-                validator: (_, value: string) =>
-                  isValidCpf(value ?? '')
-                    ? Promise.resolve()
-                    : Promise.reject(new Error(t('validation.cpf'))),
-              },
-            ]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label={t('contracts.fields.brandName')}
-            name="brandName"
-            rules={[{ required: true, message: t('validation.required') }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label={t('contracts.fields.classes')}
-            name="classes"
-            rules={[{ required: true, message: t('validation.required') }]}
-          >
-            <Select
-              mode="multiple"
-              options={NICE_CLASSES.map((n) => ({ value: n, label: String(n) }))}
-            />
-          </Form.Item>
-          <Form.Item
-            label={t('contracts.fields.amount')}
-            name="amount"
-            rules={[{ required: true, message: t('validation.required') }]}
-          >
-            <InputNumber min={0} step={0.01} precision={2} style={{ width: '100%' }} prefix="R$" />
-          </Form.Item>
-          {canEdit ? (
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={updateMutation.isPending}
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        {canEdit || isPlatformAdmin ? (
+        <Col xs={24} xl={12}>
+          <Card>
+            <Form<UpdateContractRequest>
+              key={contract.id}
+              form={form}
+              layout="vertical"
+              disabled={!canEdit}
+              initialValues={{
+                companyName: contract.companyName ?? contract.tenantName ?? '',
+                companyDocument: maskTaxId(contract.companyDocument),
+                representativeDocument: maskCpf(contract.representativeDocument),
+                brandName: contract.brandName,
+                classes: parseClasses(contract.classes),
+                amount: contract.amount,
+                street: contract.street ?? '',
+                number: contract.number ?? '',
+                city: contract.city ?? '',
+                state: contract.state ?? '',
+                zipCode: maskZipCode(contract.zipCode ?? ''),
+                minimumTerm: contract.minimumTerm || DEFAULT_MINIMUM_TERM,
+                bodyMarkdown: contract.bodyMarkdown ?? '',
+              }}
+              onFinish={(values) => {
+                void updateMutation.mutateAsync(values)
+              }}
             >
-              {t('contracts.saveSnapshot')}
-            </Button>
+              <Row gutter={16}>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.companyName')}
+                    name="companyName"
+                    rules={[required]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.companyDocument')}
+                    name="companyDocument"
+                    getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
+                      maskTaxId(event.target.value)
+                    }
+                    rules={[
+                      required,
+                      {
+                        validator: (_, value: string) =>
+                          isValidTaxId(value ?? '')
+                            ? Promise.resolve()
+                            : Promise.reject(new Error(t('validation.taxId'))),
+                      },
+                    ]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.representativeDocument')}
+                    name="representativeDocument"
+                    getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
+                      maskCpf(event.target.value)
+                    }
+                    rules={[
+                      required,
+                      {
+                        validator: (_, value: string) =>
+                          isValidCpf(value ?? '')
+                            ? Promise.resolve()
+                            : Promise.reject(new Error(t('validation.cpf'))),
+                      },
+                    ]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.zipCode')}
+                    name="zipCode"
+                    getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
+                      maskZipCode(event.target.value)
+                    }
+                    rules={[
+                      required,
+                      {
+                        validator: (_, value: string) =>
+                          isValidZipCode(value ?? '')
+                            ? Promise.resolve()
+                            : Promise.reject(new Error(t('validation.zipCode'))),
+                      },
+                    ]}
+                  >
+                    <Input inputMode="numeric" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={16}>
+                  <Form.Item
+                    label={t('contracts.fields.street')}
+                    name="street"
+                    rules={[required]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Form.Item
+                    label={t('contracts.fields.number')}
+                    name="number"
+                    rules={[required]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.city')}
+                    name="city"
+                    rules={[required]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.state')}
+                    name="state"
+                    rules={[
+                      required,
+                      {
+                        validator: (_, value: string) =>
+                          isBrazilUf(value ?? '')
+                            ? Promise.resolve()
+                            : Promise.reject(new Error(t('validation.uf'))),
+                      },
+                    ]}
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      options={BRAZIL_UFS.map((uf) => ({
+                        value: uf,
+                        label: `${uf} — ${dict.ufs[uf]}`,
+                      }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.brandName')}
+                    name="brandName"
+                    rules={[required]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.classes')}
+                    name="classes"
+                    rules={[required]}
+                  >
+                    <Select
+                      mode="multiple"
+                      options={NICE_CLASSES.map((n) => ({ value: n, label: String(n) }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.amount')}
+                    name="amount"
+                    rules={[required]}
+                  >
+                    <InputNumber
+                      min={0}
+                      step={0.01}
+                      precision={2}
+                      style={{ width: '100%' }}
+                      prefix="R$"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item
+                    label={t('contracts.fields.minimumTerm')}
+                    name="minimumTerm"
+                    rules={[required]}
+                  >
+                    <Input placeholder={DEFAULT_MINIMUM_TERM} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item
+                label={t('contracts.fields.bodyMarkdown')}
+                name="bodyMarkdown"
+                extra={t('contracts.legalTextHint')}
+                rules={[required]}
+              >
+                <Input.TextArea
+                  rows={16}
+                  style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                />
+              </Form.Item>
+              {canEdit ? (
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={updateMutation.isPending}
+                >
+                  {t('contracts.saveSnapshot')}
+                </Button>
+              ) : null}
+            </Form>
+          </Card>
+        </Col>
+        ) : null}
+        <Col xs={24} xl={canEdit || isPlatformAdmin ? 12 : 24}>
+          {canPreview ? (
+            <Card title={t('contracts.previewTitle')} style={{ marginBottom: 16 }}>
+              <PdfPreview
+                blob={previewQuery.data}
+                isLoading={previewQuery.isLoading}
+                isError={previewQuery.isError}
+                errorMessage={
+                  previewQuery.error instanceof ApiError
+                    ? previewQuery.error.message
+                    : t('contracts.previewFailed')
+                }
+                title={t('contracts.previewTitle')}
+              />
+            </Card>
           ) : null}
-        </Form>
-      </Card>
+          {canSign ? (
+            <Card title={t('contracts.contractorSignLabel')}>
+              <Typography.Paragraph type="secondary">
+                {t('contracts.signConfirmContent')}
+              </Typography.Paragraph>
+              <SignaturePad onChange={setSignaturePng} />
+              <Button
+                type="primary"
+                style={{ marginTop: 16 }}
+                loading={signMutation.isPending}
+                disabled={!signaturePng}
+                onClick={() => {
+                  if (!signaturePng) {
+                    message.warning(t('contracts.signatureRequired'))
+                    return
+                  }
+                  signMutation.mutate(signaturePng)
+                }}
+              >
+                {t('contracts.sign')}
+              </Button>
+            </Card>
+          ) : null}
+        </Col>
+      </Row>
 
       <Space wrap style={{ marginBottom: 24 }}>
         {canIssue ? (
@@ -256,38 +484,13 @@ export function ContractDetailPage() {
             {t('contracts.issue')}
           </Button>
         ) : null}
-        {canSign ? (
-          <Button
-            type="primary"
-            loading={signMutation.isPending}
-            onClick={() => {
-              modal.confirm({
-                title: t('contracts.signConfirmTitle'),
-                content: t('contracts.signConfirmContent'),
-                okText: t('contracts.sign'),
-                cancelText: t('common.cancel'),
-                onOk: () => signMutation.mutateAsync(),
-              })
-            }}
-          >
-            {t('contracts.sign')}
-          </Button>
-        ) : null}
         {canDownload ? (
-          <>
-            <Button
-              loading={downloadMutation.isPending}
-              onClick={() => downloadMutation.mutate('pdf')}
-            >
-              {t('contracts.downloadPdf')}
-            </Button>
-            <Button
-              loading={downloadMutation.isPending}
-              onClick={() => downloadMutation.mutate('docx')}
-            >
-              {t('contracts.downloadWord')}
-            </Button>
-          </>
+          <Button
+            loading={downloadMutation.isPending}
+            onClick={() => downloadMutation.mutate()}
+          >
+            {t('contracts.downloadPdf')}
+          </Button>
         ) : null}
       </Space>
 

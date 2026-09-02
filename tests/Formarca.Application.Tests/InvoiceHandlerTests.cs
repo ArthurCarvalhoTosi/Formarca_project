@@ -141,7 +141,14 @@ public class InvoiceHandlerTests
             "39053344705",
             brand.Name,
             brand.ClassesSnapshot(),
-            1000m);
+            1000m,
+            bodyMarkdown: "# Contrato",
+            companyName: tenant.Name,
+            street: tenant.Address!.Street,
+            number: tenant.Address.Number,
+            city: tenant.Address.City,
+            state: tenant.Address.State,
+            zipCode: tenant.Address.ZipCode);
         contract.Issue();
         contract.SignByClient();
         repository.Add(contract);
