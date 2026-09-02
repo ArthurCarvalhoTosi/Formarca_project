@@ -159,7 +159,19 @@ public sealed class PreviewContractQueryHandler(
             throw new ConflictException("Contract preview is available for pre-issued, issued, or signed contracts.");
         }
 
-        var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
+        if (contract.Status is ContractStatus.Issued or ContractStatus.Signed)
+        {
+            var kind = contract.PersistedFileKind;
+            var file = await repository.FirstOrDefaultAsync<ContractFile>(
+                f => f.ContractId == contract.Id && f.Kind == kind && !f.IsDeleted,
+                cancellationToken);
+            if (file is not null)
+            {
+                return new ContractDocumentFile(file.FileName, file.ContentType, file.Content);
+            }
+        }
+
+        var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: false));
         return new ContractDocumentFile($"{contract.Code}-preview.pdf", "application/pdf", pdf);
     }
 }
@@ -202,12 +214,55 @@ public sealed class DownloadContractQueryHandler(
 
         if (file is null)
         {
-            var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
+            var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: false));
             await ContractDocuments.UpsertPdfAsync(repository, contract, kind, pdf, cancellationToken);
             await repository.CommitAsync(cancellationToken);
             return new ContractDocumentFile($"{contract.Code}.pdf", "application/pdf", pdf);
         }
 
         return new ContractDocumentFile(file.FileName, file.ContentType, file.Content);
+    }
+}
+
+public sealed record GetContractSignLinkQuery(Guid Id) : IRequest<ContractSignLinkDto>;
+
+public sealed class GetContractSignLinkQueryHandler(
+    ICurrentUser currentUser,
+    IGenericRepository repository,
+    ITenantContext tenantContext,
+    IAutentiqueClient autentique) : IRequestHandler<GetContractSignLinkQuery, ContractSignLinkDto>
+{
+    public async Task<ContractSignLinkDto> Handle(GetContractSignLinkQuery request, CancellationToken cancellationToken)
+    {
+        CommercialAccess.IgnoreTenantFiltersIfAdmin(tenantContext, currentUser);
+        var contract = await repository.FirstOrDefaultAsync<Contract>(
+            c => c.Id == request.Id && !c.IsDeleted, cancellationToken)
+            ?? throw new NotFoundException("Contract not found.");
+
+        if (contract.Status != ContractStatus.Issued)
+        {
+            throw new ConflictException("Signature link is available only for issued contracts.");
+        }
+
+        if (string.IsNullOrWhiteSpace(contract.AutentiqueSignerPublicId)
+            && string.IsNullOrWhiteSpace(contract.AutentiqueSignUrl))
+        {
+            throw new ConflictException("This contract has no Autentique signature link.");
+        }
+
+        var signUrl = contract.AutentiqueSignUrl;
+        if (!string.IsNullOrWhiteSpace(contract.AutentiqueSignerPublicId))
+        {
+            signUrl = await autentique.CreateLinkToSignatureAsync(contract.AutentiqueSignerPublicId, cancellationToken);
+            contract.SetAutentiqueSignUrl(signUrl);
+            await repository.CommitAsync(cancellationToken);
+        }
+
+        if (string.IsNullOrWhiteSpace(signUrl))
+        {
+            throw new ConflictException("Could not obtain an Autentique signature link.");
+        }
+
+        return new ContractSignLinkDto(signUrl);
     }
 }

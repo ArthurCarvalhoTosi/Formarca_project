@@ -6,7 +6,6 @@ using Formarca.Application.Common.Models;
 using Formarca.Domain.Brands;
 using Formarca.Domain.Common;
 using Formarca.Domain.Contracts;
-using Formarca.Domain.Invoices;
 using Formarca.Domain.Tenancy;
 using MediatR;
 
@@ -204,7 +203,8 @@ public sealed class IssueContractCommandHandler(
     ICurrentUser currentUser,
     IGenericRepository repository,
     ITenantContext tenantContext,
-    IContractDocumentGenerator documents) : IRequestHandler<IssueContractCommand, ContractDto>
+    IContractDocumentGenerator documents,
+    IAutentiqueClient autentique) : IRequestHandler<IssueContractCommand, ContractDto>
 {
     public async Task<ContractDto> Handle(IssueContractCommand request, CancellationToken cancellationToken)
     {
@@ -219,21 +219,42 @@ public sealed class IssueContractCommandHandler(
             throw new ConflictException(ex.Message);
         }
 
-        var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
+        var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: false));
+        var tenant = await repository.FirstOrDefaultAsync<Tenant>(
+            t => t.Id == contract.TenantId && !t.IsDeleted, cancellationToken);
+        var created = await autentique.CreateDocumentAsync(
+            new AutentiqueCreateDocumentRequest(
+                contract.Code,
+                pdf,
+                $"{contract.Code}.pdf",
+                contract.CompanyName,
+                tenant?.Email,
+                string.IsNullOrWhiteSpace(contract.RepresentativeDocument) ? null : contract.RepresentativeDocument,
+                PdfPageCount.FromPdf(pdf)),
+            cancellationToken);
+
+        var signUrl = created.SignUrl;
+        if (string.IsNullOrWhiteSpace(signUrl) && !string.IsNullOrWhiteSpace(created.ClientSignerPublicId))
+        {
+            signUrl = await autentique.CreateLinkToSignatureAsync(created.ClientSignerPublicId, cancellationToken);
+        }
+
+        await autentique.SignDocumentAsync(created.DocumentId, cancellationToken);
+        contract.AttachAutentiqueSigning(created.DocumentId, created.ClientSignerPublicId, signUrl);
+
         await ContractDocuments.UpsertPdfAsync(repository, contract, ContractFileKind.Issued, pdf, cancellationToken);
         await repository.CommitAsync(cancellationToken);
         return contract.ToDto();
     }
 }
 
-public sealed record SignContractCommand(Guid Id, string SignaturePngBase64) : IRequest<ContractDto>;
+public sealed record SignContractCommand(Guid Id, string? SignaturePngBase64) : IRequest<ContractDto>;
 
 public sealed class SignContractCommandValidator : AbstractValidator<SignContractCommand>
 {
     public SignContractCommandValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
-        RuleFor(x => x.SignaturePngBase64).NotEmpty();
     }
 }
 
@@ -247,7 +268,14 @@ public sealed class SignContractCommandHandler(
     {
         CommercialAccess.IgnoreTenantFiltersIfAdmin(tenantContext, currentUser);
         var contract = await UpdateContractCommandHandler.LoadAsync(repository, request.Id, cancellationToken);
-        var signature = PngSignature.DecodeRequired(request.SignaturePngBase64);
+        if (!string.IsNullOrWhiteSpace(contract.AutentiqueDocumentId))
+        {
+            throw new ConflictException("This contract is signed through Autentique.");
+        }
+
+        var signature = string.IsNullOrWhiteSpace(request.SignaturePngBase64)
+            ? null
+            : PngSignature.DecodeRequired(request.SignaturePngBase64);
         try
         {
             contract.SignByClient(signature);
@@ -259,13 +287,7 @@ public sealed class SignContractCommandHandler(
 
         var pdf = documents.GeneratePdf(contract.ToDocumentModel(stampFormarcaSignature: true));
         await ContractDocuments.UpsertPdfAsync(repository, contract, ContractFileKind.Signed, pdf, cancellationToken);
-
-        var invoiceExists = await repository.AnyAsync<Invoice>(
-            i => i.ContractId == contract.Id && !i.IsDeleted, cancellationToken);
-        if (!invoiceExists)
-        {
-            repository.Add(Invoice.CreatePending(contract.TenantId, contract.Id, contract.Amount));
-        }
+        await ContractDocuments.EnsurePendingInvoiceAsync(repository, contract, cancellationToken);
 
         await repository.CommitAsync(cancellationToken);
         return contract.ToDto();

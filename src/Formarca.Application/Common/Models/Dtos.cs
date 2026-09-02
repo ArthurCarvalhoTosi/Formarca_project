@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Formarca.Application.Common.Models;
 
 public sealed record AuthTokensDto(
@@ -119,7 +121,13 @@ public sealed record ContractDto(
     string? TenantName = null,
     decimal? PaidAmount = null,
     string? PaymentMethod = null,
-    Guid? InvoiceId = null);
+    Guid? InvoiceId = null,
+    string? AutentiqueDocumentId = null,
+    string? AutentiqueSignUrl = null,
+    string? AutentiqueStatus = null);
+
+public sealed record ContractSignLinkDto(
+    [property: JsonPropertyName("signUrl")] string SignUrl);
 
 public sealed record InvoiceDto(
     Guid Id,

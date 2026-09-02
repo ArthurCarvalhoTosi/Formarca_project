@@ -74,6 +74,11 @@ public static class DependencyInjection
         services.AddScoped<IContractDocumentGenerator, Documents.ContractDocumentGenerator>();
         services.AddSingleton<IContractTemplateProvider, Documents.EmbeddedContractTemplateProvider>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.Configure<Autentique.AutentiqueOptions>(configuration.GetSection(Autentique.AutentiqueOptions.SectionName));
+        services.AddHttpClient<IAutentiqueClient, Autentique.AutentiqueClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(2);
+        });
 
         return services;
     }

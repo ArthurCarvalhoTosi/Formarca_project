@@ -57,11 +57,18 @@ public sealed class ContractConfiguration : IEntityTypeConfiguration<Contract>
         builder.Property(x => x.ZipCode).HasMaxLength(8).IsRequired();
         builder.Property(x => x.MinimumTerm).HasMaxLength(100).IsRequired();
         builder.Property(x => x.ClientSignaturePng).HasColumnType("varbinary(max)");
+        builder.Property(x => x.AutentiqueDocumentId).HasMaxLength(128);
+        builder.Property(x => x.AutentiqueSignerPublicId).HasMaxLength(64);
+        builder.Property(x => x.AutentiqueSignUrl).HasMaxLength(2048);
+        builder.Property(x => x.AutentiqueStatus).HasMaxLength(32);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.BrandId);
         builder.HasIndex(x => x.Code)
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => x.AutentiqueDocumentId)
+            .IsUnique()
+            .HasFilter("[AutentiqueDocumentId] IS NOT NULL AND [IsDeleted] = 0");
         builder.Ignore(x => x.DomainEvents);
         builder.Ignore(x => x.CanDownload);
         builder.Ignore(x => x.CanPreview);

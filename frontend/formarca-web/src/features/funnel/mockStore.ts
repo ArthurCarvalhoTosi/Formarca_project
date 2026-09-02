@@ -7,12 +7,11 @@ import {
   PRE_ISSUE_REPRESENTATIVE_DOCUMENT_REQUIRED,
 } from '@/features/brands/preIssueError'
 import { buildContractPdf } from '@/features/contracts/mockPdf'
-import { unwrapPngBase64 } from '@/features/contracts/signature'
 import type {
   Contract,
   ContractListFilters,
+  ContractSignLink,
   PreIssueContractRequest,
-  SignContractRequest,
   UpdateContractRequest,
 } from '@/features/contracts/types'
 import { DEFAULT_MINIMUM_TERM, DEFAULT_TEMPLATE_KEY } from '@/features/contracts/types'
@@ -150,6 +149,19 @@ function documentSnapshot(tenantId: string, extras: {
   }
 }
 
+function mockAutentiqueSignUrl(contractId: string): string {
+  return `https://assina.ae/mock/${contractId}`
+}
+
+function ensureAutentiqueSignLink(contract: Contract): string {
+  if (!contract.autentiqueSignUrl) {
+    contract.autentiqueDocumentId ??= `mock-autentique-${contract.id}`
+    contract.autentiqueSignUrl = mockAutentiqueSignUrl(contract.id)
+    contract.autentiqueStatus ??= 'pending'
+  }
+  return contract.autentiqueSignUrl
+}
+
 function hasCompleteSnapshot(contract: Contract): boolean {
   return Boolean(
     contract.companyName?.trim() &&
@@ -181,7 +193,9 @@ const contracts: Contract[] = [
     generatedAtUtc: '2026-01-10T12:00:00.000Z',
     signedAtUtc: '2026-01-12T15:00:00.000Z',
     invoiceId: 'mock-invoice-demo',
-    clientSignaturePng: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    autentiqueDocumentId: 'mock-autentique-demo',
+    autentiqueSignUrl: 'https://assina.ae/mock/mock-contract-demo',
+    autentiqueStatus: 'finished',
     ...documentSnapshot(MOCK_TENANTS[0].id, {
       companyDocument: '39053344705',
       brandName: 'Demo Marcas',
@@ -206,6 +220,9 @@ const contracts: Contract[] = [
     generatedAtUtc: '2026-02-01T12:00:00.000Z',
     signedAtUtc: null,
     invoiceId: null,
+    autentiqueDocumentId: 'mock-autentique-acme',
+    autentiqueSignUrl: 'https://assina.ae/mock/mock-contract-acme',
+    autentiqueStatus: 'pending',
     ...documentSnapshot(MOCK_TENANTS[1].id, {
       companyDocument: '12345678000195',
       brandName: 'Acme',
@@ -546,25 +563,39 @@ export const mockFunnel = {
       )
     }
     contract.status = 'Issued'
+    ensureAutentiqueSignLink(contract)
     return enrichContract(contract)
   },
 
-  signContract(id: string, payload: SignContractRequest): Contract {
+  getContractSignLink(id: string): ContractSignLink {
+    const contract = contracts.find((item) => item.id === id)
+    if (!contract) throw new ApiError(404, 'Contract not found')
+    assertContractScope(contract)
+    if (contract.status !== 'Issued') {
+      throw new ApiError(409, 'Signature link is available only for issued contracts.')
+    }
+    if (!contract.autentiqueDocumentId && !contract.autentiqueSignUrl) {
+      throw new ApiError(409, 'This contract has no Autentique signature link.')
+    }
+    return { signUrl: ensureAutentiqueSignLink(contract) }
+  },
+
+  simulateAutentiqueSign(id: string): Contract {
     const contract = contracts.find((item) => item.id === id)
     if (!contract) throw new ApiError(404, 'Contract not found')
     assertContractScope(contract)
     if (contract.status !== 'Issued') {
       throw new ApiError(409, 'Only issued contracts can be signed')
     }
-    const signaturePngBase64 = unwrapPngBase64(payload.signaturePngBase64)
-    if (!signaturePngBase64) {
-      throw new ApiError(400, 'Signature image is required')
+    if (contract.autentiqueStatus === 'rejected') {
+      throw new ApiError(409, 'This contract was rejected in Autentique.')
     }
-    contract.clientSignaturePng = signaturePngBase64
     const now = new Date().toISOString()
     contract.status = 'Signed'
     contract.clientSignedAt = now
     contract.signedAtUtc = now
+    contract.autentiqueStatus = 'finished'
+    ensureAutentiqueSignLink(contract)
     const invoice: Invoice = {
       id: crypto.randomUUID(),
       contractId: contract.id,

@@ -1,5 +1,6 @@
 using Formarca.Application.Common.Interfaces;
 using Formarca.Domain.Contracts;
+using Formarca.Domain.Invoices;
 
 namespace Formarca.Application.Contracts;
 
@@ -50,5 +51,18 @@ internal static class ContractDocuments
         }
 
         existing.ReplaceContent(content);
+    }
+
+    public static async Task EnsurePendingInvoiceAsync(
+        IGenericRepository repository,
+        Contract contract,
+        CancellationToken cancellationToken)
+    {
+        var invoiceExists = await repository.AnyAsync<Invoice>(
+            i => i.ContractId == contract.Id && !i.IsDeleted, cancellationToken);
+        if (!invoiceExists)
+        {
+            repository.Add(Invoice.CreatePending(contract.TenantId, contract.Id, contract.Amount));
+        }
     }
 }

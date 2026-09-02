@@ -30,6 +30,10 @@ export type Contract = {
   state?: string | null
   zipCode?: string | null
   minimumTerm?: string | null
+  autentiqueDocumentId?: string | null
+  autentiqueSignUrl?: string | null
+  /** pending | finished | rejected — matches AutentiqueDocumentStatus */
+  autentiqueStatus?: string | null
   /** GET payloads may omit the PNG; do not rely on this field in the UI. */
   clientSignaturePng?: string | null
 }
@@ -69,8 +73,35 @@ export type UpdateContractRequest = {
   minimumTerm?: string | null
 }
 
-export type SignContractRequest = {
-  signaturePngBase64: string
+export type ContractSignLink = {
+  signUrl: string
+}
+
+/** Matches Formarca.Domain.Contracts.AutentiqueDocumentStatus */
+export const AUTENTIQUE_STATUS = {
+  pending: 'pending',
+  finished: 'finished',
+  rejected: 'rejected',
+} as const
+
+export type AutentiqueStatus = (typeof AUTENTIQUE_STATUS)[keyof typeof AUTENTIQUE_STATUS]
+
+export function isAutentiqueRejected(status?: string | null): boolean {
+  return status?.trim().toLowerCase() === AUTENTIQUE_STATUS.rejected
+}
+
+export function hasAutentiqueDocument(contract: Pick<Contract, 'autentiqueDocumentId'>): boolean {
+  return Boolean(contract.autentiqueDocumentId?.trim())
+}
+
+export function parseContractSignLink(data: unknown): ContractSignLink | null {
+  const record = data && typeof data === 'object' ? (data as Record<string, unknown>) : null
+  const raw =
+    (typeof record?.signUrl === 'string' && record.signUrl) ||
+    (typeof record?.SignUrl === 'string' && record.SignUrl) ||
+    ''
+  const signUrl = raw.trim()
+  return signUrl ? { signUrl } : null
 }
 
 export const DEFAULT_MINIMUM_TERM = '12 (doze) meses'

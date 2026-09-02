@@ -15,7 +15,7 @@ import {
   Typography,
 } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, type ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NICE_CLASSES } from '@/features/brands/types'
 import { PayInvoicePanel } from '@/features/invoices/PayInvoicePanel'
@@ -29,12 +29,19 @@ import {
 } from '@/features/registration/validation'
 import { ApiError, getApiErrorMessage } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { env } from '@/shared/config/env'
 import { BRAZIL_UFS, useI18n } from '@/shared/i18n'
 import { formatDate, parseClasses } from '@/shared/money'
+import { AutentiqueSignEmbed } from './AutentiqueSignEmbed'
 import { contractsApi } from './api'
 import { PdfPreview } from './PdfPreview'
-import { SignaturePad } from './SignaturePad'
-import { DEFAULT_MINIMUM_TERM, type UpdateContractRequest } from './types'
+import {
+  DEFAULT_MINIMUM_TERM,
+  hasAutentiqueDocument,
+  isAutentiqueRejected,
+  type Contract,
+  type UpdateContractRequest,
+} from './types'
 
 const PREVIEWABLE_STATUSES = new Set(['PreIssued', 'Issued', 'Signed'])
 
@@ -75,20 +82,49 @@ export function ContractDetailPage() {
   const { isPlatformAdmin, user } = useAuth()
   const queryClient = useQueryClient()
   const [form] = Form.useForm<UpdateContractRequest>()
-  const [signaturePng, setSignaturePng] = useState<string | null>(null)
+  const previousStatusRef = useRef<string | undefined>(undefined)
+  const hasLoadedStatusRef = useRef(false)
 
   const query = useQuery({
     queryKey: ['contracts', id],
     queryFn: () => contractsApi.get(id!),
     enabled: Boolean(id),
+    refetchInterval: (current) => {
+      const data = current.state.data
+      if (data?.status !== 'Issued') return false
+      if (isAutentiqueRejected(data.autentiqueStatus)) return false
+      return 5000
+    },
   })
 
   const canPreview = Boolean(id) && PREVIEWABLE_STATUSES.has(query.data?.status ?? '')
+  const canSign =
+    query.data?.status === 'Issued' &&
+    (isPlatformAdmin || (user?.permissions ?? []).includes('contracts.sign'))
+  const isRejected = isAutentiqueRejected(query.data?.autentiqueStatus)
+  const hasAutentique = Boolean(query.data && hasAutentiqueDocument(query.data))
+  const contractSignUrl = query.data?.autentiqueSignUrl?.trim() || null
+
   const previewQuery = useQuery({
     queryKey: ['contracts', id, 'preview'],
     queryFn: () => contractsApi.preview(id!),
     enabled: canPreview,
   })
+
+  const signLinkQuery = useQuery({
+    queryKey: ['contracts', id, 'sign-link'],
+    queryFn: () => contractsApi.getSignLink(id!),
+    enabled: Boolean(id) && canSign && hasAutentique && !isRejected && !contractSignUrl,
+  })
+
+  useEffect(() => {
+    const url = signLinkQuery.data?.signUrl?.trim()
+    if (!id || !url) return
+    queryClient.setQueryData(['contracts', id], (current: Contract | undefined) => {
+      if (!current || current.autentiqueSignUrl?.trim()) return current
+      return { ...current, autentiqueSignUrl: url }
+    })
+  }, [id, queryClient, signLinkQuery.data?.signUrl])
 
   const invalidate = async () => {
     await Promise.all([
@@ -97,6 +133,25 @@ export function ContractDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['processes'] }),
     ])
   }
+
+  useEffect(() => {
+    const status = query.data?.status
+    if (!status) return
+    const becameSigned =
+      hasLoadedStatusRef.current &&
+      previousStatusRef.current === 'Issued' &&
+      status === 'Signed'
+    hasLoadedStatusRef.current = true
+    previousStatusRef.current = status
+    if (!becameSigned) return
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['contracts'] }),
+      queryClient.invalidateQueries({ queryKey: ['invoices'] }),
+      queryClient.invalidateQueries({ queryKey: ['processes'] }),
+    ]).then(() => {
+      message.success(t('contracts.signSuccess'))
+    })
+  }, [query.data?.status, queryClient, message, t])
 
   const updateMutation = useMutation({
     mutationFn: (values: UpdateContractRequest) =>
@@ -123,13 +178,10 @@ export function ContractDetailPage() {
     },
   })
 
-  const signMutation = useMutation({
-    mutationFn: (signaturePngBase64: string) =>
-      contractsApi.sign(id!, { signaturePngBase64 }),
+  const simulateMutation = useMutation({
+    mutationFn: () => contractsApi.simulateAutentiqueSign(id!),
     onSuccess: async () => {
-      setSignaturePng(null)
       await invalidate()
-      message.success(t('contracts.signSuccess'))
     },
     onError: (error) => {
       message.error(getApiErrorMessage(error, t('contracts.signFailed')))
@@ -165,10 +217,8 @@ export function ContractDetailPage() {
   const contract = query.data
   const canEdit = contract.status === 'PreIssued' && isPlatformAdmin
   const canIssue = contract.status === 'PreIssued' && isPlatformAdmin
-  const canSign =
-    contract.status === 'Issued' &&
-    (isPlatformAdmin || (user?.permissions ?? []).includes('contracts.sign'))
   const canDownload = contract.status === 'Issued' || contract.status === 'Signed'
+  const embedSignUrl = contractSignUrl || signLinkQuery.data?.signUrl || null
   const statusLabel =
     contract.status in dict.contracts.status
       ? dict.contracts.status[contract.status as keyof typeof dict.contracts.status]
@@ -198,7 +248,7 @@ export function ContractDetailPage() {
 
       {(updateMutation.isError ||
         (issueMutation.isError && !isFormValidationError(issueMutation.error)) ||
-        signMutation.isError) ? (
+        simulateMutation.isError) ? (
         <Alert
           type="error"
           showIcon
@@ -207,7 +257,7 @@ export function ContractDetailPage() {
               ? getApiErrorMessage(updateMutation.error, t('contracts.updateFailed'))
               : issueMutation.isError
                 ? getApiErrorMessage(issueMutation.error, t('contracts.issueFailed'))
-                : getApiErrorMessage(signMutation.error, t('contracts.signFailed'))
+                : getApiErrorMessage(simulateMutation.error, t('contracts.signFailed'))
           }
           style={{ marginBottom: 16 }}
         />
@@ -448,27 +498,29 @@ export function ContractDetailPage() {
               />
             </Card>
           ) : null}
-          {canSign ? (
+          {canSign && hasAutentique ? (
             <Card title={t('contracts.contractorSignLabel')}>
-              <Typography.Paragraph type="secondary">
-                {t('contracts.signConfirmContent')}
-              </Typography.Paragraph>
-              <SignaturePad onChange={setSignaturePng} />
-              <Button
-                type="primary"
-                style={{ marginTop: 16 }}
-                loading={signMutation.isPending}
-                disabled={!signaturePng}
-                onClick={() => {
-                  if (!signaturePng) {
-                    message.warning(t('contracts.signatureRequired'))
-                    return
-                  }
-                  signMutation.mutate(signaturePng)
-                }}
-              >
-                {t('contracts.sign')}
-              </Button>
+              <AutentiqueSignEmbed
+                signUrl={embedSignUrl}
+                isLoadingLink={signLinkQuery.isLoading}
+                linkErrorMessage={
+                  signLinkQuery.isError
+                    ? getApiErrorMessage(
+                        signLinkQuery.error,
+                        t('contracts.autentiqueSignLinkFailed'),
+                      )
+                    : null
+                }
+                isRejected={isRejected}
+                showSimulate={env.mockAuth && !isRejected}
+                simulatePending={simulateMutation.isPending}
+                onSimulate={() => simulateMutation.mutate()}
+              />
+            </Card>
+          ) : null}
+          {canSign && !hasAutentique ? (
+            <Card title={t('contracts.contractorSignLabel')}>
+              <Alert type="warning" showIcon message={t('contracts.autentiqueLegacyUnavailable')} />
             </Card>
           ) : null}
         </Col>

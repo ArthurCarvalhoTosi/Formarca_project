@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Formarca.Application.Autentique;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Domain.Common;
 using Microsoft.EntityFrameworkCore.Query;
@@ -131,6 +132,78 @@ internal sealed class FakeContractTemplateProvider : IContractTemplateProvider
         "Nome {{contratanteNome}} CNPJ {{cnpj}} Rua {{endereco}} {{numero}} {{cidade}}/{{uf}} CEP {{cep}} Marca {{marcaNome}} Classes {{quantidadeClasses}} Valor {{valor}} Periodo {{periodo}}";
 
     public string GetTemplate(string templateKey) => Template;
+}
+
+internal sealed class FakeAutentiqueClient : IAutentiqueClient
+{
+    public string FormarcaSignerEmail { get; set; } = "formarca@example.com";
+
+    public string WebhookSecret { get; set; } = "webhook-secret";
+
+    public string DocumentId { get; set; } = "autentique-doc-1";
+
+    public string ClientSignerPublicId { get; set; } = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
+    public string? SignUrl { get; set; } = "https://assina.ae/fake-link";
+
+    public string RegeneratedSignUrl { get; set; } = "https://assina.ae/regenerated";
+
+    public byte[] SignedPdf { get; set; } = "%PDF-autentique-signed"u8.ToArray();
+
+    public bool UseRealHmac { get; set; } = true;
+
+    public bool VerifyWebhookResult { get; set; } = true;
+
+    public Exception? CreateException { get; set; }
+
+    public List<AutentiqueCreateDocumentRequest> Created { get; } = [];
+
+    public List<string> SignedDocumentIds { get; } = [];
+
+    public List<string> LinkRequests { get; } = [];
+
+    public List<string> Downloads { get; } = [];
+
+    public bool VerifyWebhookSignature(string rawBody, string? signatureHeader)
+    {
+        if (UseRealHmac)
+        {
+            return AutentiqueWebhookHmac.Verify(rawBody, signatureHeader, WebhookSecret);
+        }
+
+        return VerifyWebhookResult;
+    }
+
+    public Task<AutentiqueCreatedDocument> CreateDocumentAsync(
+        AutentiqueCreateDocumentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (CreateException is not null)
+        {
+            throw CreateException;
+        }
+
+        Created.Add(request);
+        return Task.FromResult(new AutentiqueCreatedDocument(DocumentId, ClientSignerPublicId, SignUrl));
+    }
+
+    public Task SignDocumentAsync(string documentId, CancellationToken cancellationToken = default)
+    {
+        SignedDocumentIds.Add(documentId);
+        return Task.CompletedTask;
+    }
+
+    public Task<string> CreateLinkToSignatureAsync(string signerPublicId, CancellationToken cancellationToken = default)
+    {
+        LinkRequests.Add(signerPublicId);
+        return Task.FromResult(RegeneratedSignUrl);
+    }
+
+    public Task<byte[]> DownloadSignedPdfAsync(string documentId, CancellationToken cancellationToken = default)
+    {
+        Downloads.Add(documentId);
+        return Task.FromResult(SignedPdf);
+    }
 }
 
 internal sealed class InMemoryRepository : IGenericRepository

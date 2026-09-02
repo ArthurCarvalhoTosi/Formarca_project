@@ -1,6 +1,7 @@
 using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Contracts;
 using Formarca.Application.Contracts.Commands;
+using Formarca.Application.Contracts.Queries;
 using Formarca.Domain.Brands;
 using Formarca.Domain.Contracts;
 using Formarca.Domain.Invoices;
@@ -88,36 +89,50 @@ public class ContractCommandTests
     {
         var fixture = Seed(withPreIssued: true, includeAddress: false);
         var documents = new FakeContractDocumentGenerator();
+        var autentique = new FakeAutentiqueClient();
         var handler = new IssueContractCommandHandler(
             new FakeCurrentUser { IsPlatformAdmin = true },
             fixture.Repository,
             new FakeTenantContext(),
-            documents);
+            documents,
+            autentique);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             handler.Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None));
 
         Assert.Contains("cannot be issued", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(documents.PdfModels);
+        Assert.Empty(autentique.Created);
         Assert.Empty(fixture.Repository.Query<ContractFile>());
     }
 
     [Fact]
-    public async Task Issue_Generates_And_Persists_Pdf()
+    public async Task Issue_Generates_Pdf_Without_Stamp_And_Uploads_To_Autentique()
     {
         var fixture = Seed(withPreIssued: true);
         var documents = new FakeContractDocumentGenerator();
+        var autentique = new FakeAutentiqueClient();
         var handler = new IssueContractCommandHandler(
             new FakeCurrentUser { IsPlatformAdmin = true },
             fixture.Repository,
             new FakeTenantContext(),
-            documents);
+            documents,
+            autentique);
 
         var result = await handler.Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None);
 
         Assert.Equal(ContractStatus.Issued.ToString(), result.Status);
+        Assert.Equal("autentique-doc-1", result.AutentiqueDocumentId);
+        Assert.Equal("https://assina.ae/fake-link", result.AutentiqueSignUrl);
+        Assert.Equal("pending", result.AutentiqueStatus);
         Assert.Single(documents.PdfModels);
-        Assert.True(documents.PdfModels[0].StampFormarcaSignature);
+        Assert.False(documents.PdfModels[0].StampFormarcaSignature);
+        Assert.Single(autentique.Created);
+        Assert.Equal(fixture.Tenant.Email, autentique.Created[0].ClientEmail);
+        Assert.Equal("39053344705", autentique.Created[0].ClientCpf);
+        Assert.Equal("Acme Ltd", autentique.Created[0].ClientName);
+        Assert.Equal(1, autentique.Created[0].LastPageNumber);
+        Assert.Equal(["autentique-doc-1"], autentique.SignedDocumentIds);
         var file = Assert.Single(fixture.Repository.Query<ContractFile>());
         Assert.Equal(ContractFileKind.Issued, file.Kind);
         Assert.Equal("application/pdf", file.ContentType);
@@ -125,17 +140,36 @@ public class ContractCommandTests
     }
 
     [Fact]
-    public async Task Sign_Stamps_Client_Png_Persists_Signed_Pdf_And_Creates_Invoice()
+    public async Task Sign_Rejected_When_Contract_Uses_Autentique()
     {
         var fixture = Seed(withPreIssued: true);
         var documents = new FakeContractDocumentGenerator();
-        var issuer = new IssueContractCommandHandler(
+        var autentique = new FakeAutentiqueClient();
+        await new IssueContractCommandHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            fixture.Repository,
+            new FakeTenantContext(),
+            documents,
+            autentique).Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None);
+
+        var handler = new SignContractCommandHandler(
             new FakeCurrentUser { IsPlatformAdmin = true },
             fixture.Repository,
             new FakeTenantContext(),
             documents);
-        await issuer.Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None);
 
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            handler.Handle(new SignContractCommand(fixture.Contract.Id, TinyPngBase64), CancellationToken.None));
+
+        Assert.Contains("Autentique", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Sign_Stamps_Client_Png_When_Contract_Has_No_Autentique()
+    {
+        var fixture = Seed(withPreIssued: true);
+        fixture.Contract!.Issue();
+        var documents = new FakeContractDocumentGenerator();
         var handler = new SignContractCommandHandler(
             new FakeCurrentUser { IsPlatformAdmin = true },
             fixture.Repository,
@@ -149,11 +183,6 @@ public class ContractCommandTests
         Assert.Equal(ContractStatus.Signed.ToString(), result.Status);
         Assert.NotNull(result.ClientSignedAt);
         Assert.NotNull(result.ClientSignaturePng);
-        Assert.Equal(2, documents.PdfModels.Count);
-        Assert.NotNull(documents.PdfModels[1].ClientSignaturePng);
-        Assert.Contains(
-            fixture.Repository.Query<ContractFile>(),
-            f => f.Kind == ContractFileKind.Signed && f.Content.Length > 0);
         Assert.Contains(
             fixture.Repository.Query<Invoice>(),
             i => i.ContractId == fixture.Contract.Id && i.Status == InvoiceStatus.PendingPayment);
@@ -163,13 +192,8 @@ public class ContractCommandTests
     public async Task Sign_Rejects_Non_Png()
     {
         var fixture = Seed(withPreIssued: true);
+        fixture.Contract!.Issue();
         var documents = new FakeContractDocumentGenerator();
-        await new IssueContractCommandHandler(
-            new FakeCurrentUser { IsPlatformAdmin = true },
-            fixture.Repository,
-            new FakeTenantContext(),
-            documents).Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None);
-
         var handler = new SignContractCommandHandler(
             new FakeCurrentUser { IsPlatformAdmin = true },
             fixture.Repository,
@@ -178,6 +202,32 @@ public class ContractCommandTests
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             handler.Handle(new SignContractCommand(fixture.Contract.Id, Convert.ToBase64String("not-a-png"u8.ToArray())), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SignLink_Regenerates_Via_Autentique()
+    {
+        var fixture = Seed(withPreIssued: true);
+        var documents = new FakeContractDocumentGenerator();
+        var autentique = new FakeAutentiqueClient();
+        await new IssueContractCommandHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            fixture.Repository,
+            new FakeTenantContext(),
+            documents,
+            autentique).Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None);
+
+        var handler = new GetContractSignLinkQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            fixture.Repository,
+            new FakeTenantContext(),
+            autentique);
+
+        var result = await handler.Handle(new GetContractSignLinkQuery(fixture.Contract.Id), CancellationToken.None);
+
+        Assert.Equal("https://assina.ae/regenerated", result.SignUrl);
+        Assert.Equal(["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"], autentique.LinkRequests);
+        Assert.Equal("https://assina.ae/regenerated", fixture.Contract.AutentiqueSignUrl);
     }
 
     [Fact]

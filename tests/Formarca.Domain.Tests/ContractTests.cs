@@ -98,6 +98,51 @@ public class ContractTests
     }
 
     [Fact]
+    public void SignByClient_Without_Png_Marks_Signed()
+    {
+        var contract = PreIssue();
+        contract.Issue();
+        contract.SignByClient();
+
+        Assert.Equal(ContractStatus.Signed, contract.Status);
+        Assert.Null(contract.ClientSignaturePng);
+        Assert.NotNull(contract.ClientSignedAt);
+    }
+
+    [Fact]
+    public void AttachAutentiqueSigning_Stores_Ids_And_Pending_Status()
+    {
+        var contract = PreIssue();
+        contract.Issue();
+        contract.AttachAutentiqueSigning("doc-1", "signer-1", "https://assina.ae/abc");
+
+        Assert.Equal("doc-1", contract.AutentiqueDocumentId);
+        Assert.Equal("signer-1", contract.AutentiqueSignerPublicId);
+        Assert.Equal("https://assina.ae/abc", contract.AutentiqueSignUrl);
+        Assert.Equal(AutentiqueDocumentStatus.Pending, contract.AutentiqueStatus);
+
+        contract.SetAutentiqueSignUrl("https://assina.ae/new");
+        Assert.Equal("https://assina.ae/new", contract.AutentiqueSignUrl);
+
+        contract.MarkAutentiqueRejected();
+        Assert.Equal(AutentiqueDocumentStatus.Rejected, contract.AutentiqueStatus);
+        Assert.Equal(ContractStatus.Issued, contract.Status);
+    }
+
+    [Fact]
+    public void SignByClient_Sets_Autentique_Finished()
+    {
+        var contract = PreIssue();
+        contract.Issue();
+        contract.AttachAutentiqueSigning("doc-1", "signer-1", "https://assina.ae/abc");
+        contract.SignByClient();
+
+        Assert.Equal(ContractStatus.Signed, contract.Status);
+        Assert.Equal(AutentiqueDocumentStatus.Finished, contract.AutentiqueStatus);
+        Assert.Null(contract.ClientSignaturePng);
+    }
+
+    [Fact]
     public void Cancel_Not_Allowed_After_Sign()
     {
         var contract = PreIssue();

@@ -50,7 +50,10 @@ internal static class CommercialMappings
             tenantName,
             invoice is { Status: InvoiceStatus.Paid } ? invoice.ReceivedAmount : null,
             invoice?.PaymentMethod?.ToString(),
-            invoice?.Id);
+            invoice?.Id,
+            contract.AutentiqueDocumentId,
+            contract.AutentiqueSignUrl,
+            contract.AutentiqueStatus);
 
     public static InvoiceDto ToDto(this Invoice invoice, string? tenantName = null, string? contractCode = null) =>
         new(

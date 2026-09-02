@@ -304,18 +304,21 @@ export const en: Dictionary = {
     issue: 'Issue',
     issueSuccess: 'Contract issued.',
     issueFailed: 'Could not issue the contract.',
-    sign: 'Confirm signature',
     signSuccess: 'Signature recorded.',
     signFailed: 'Could not record the signature.',
-    signConfirmTitle: 'Confirm client signature?',
-    signConfirmContent:
-      'The contract will become signed and an invoice will be created for payment.',
-    signHere: 'Sign here',
-    signHint:
-      'Sign in the contractor field. The FOR MARCA signature is already on the document.',
-    clearSignature: 'Clear signature',
-    signatureRequired: 'Draw the contractor signature to confirm.',
     contractorSignLabel: 'Contractor signature',
+    autentiqueEmbedHint:
+      'Sign the contract in the Autentique panel. Formarca has already signed. The status updates automatically after signing.',
+    autentiqueOpenInNewTab: 'Open in new tab',
+    autentiqueWaiting: 'Waiting for the Autentique signature…',
+    autentiqueIframeFallback:
+      'If the frame does not load, open the signature in a new tab.',
+    autentiqueSimulateSign: 'Simulate Autentique signature',
+    autentiqueSignLinkFailed: 'Could not get the signature link.',
+    autentiqueIframeTitle: 'Autentique signature',
+    autentiqueRejected: 'Autentique rejected this document. The contract was not signed.',
+    autentiqueLegacyUnavailable:
+      'This contract has no Autentique signature link. Issue it again to sign with Autentique.',
     previewTitle: 'PDF preview',
     previewFailed: 'Could not load the PDF preview.',
     legalTextHint:

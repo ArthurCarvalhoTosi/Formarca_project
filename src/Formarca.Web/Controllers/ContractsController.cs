@@ -120,10 +120,15 @@ public sealed class ContractsController(ISender sender) : ControllerBase
     public async Task<IActionResult> Issue(Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new IssueContractCommand(id), cancellationToken));
 
+    [Authorize(Policy = PermissionCodes.ContractsRead)]
+    [HttpGet("{id:guid}/sign-link")]
+    public async Task<IActionResult> SignLink(Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new GetContractSignLinkQuery(id), cancellationToken));
+
     [Authorize(Policy = PermissionCodes.ContractsSign)]
     [HttpPost("{id:guid}/sign")]
     public async Task<IActionResult> Sign(Guid id, [FromBody] SignContractRequest? request, CancellationToken cancellationToken)
-        => Ok(await sender.Send(new SignContractCommand(id, request?.SignaturePngBase64 ?? string.Empty), cancellationToken));
+        => Ok(await sender.Send(new SignContractCommand(id, request?.SignaturePngBase64), cancellationToken));
 
     [Authorize(Policy = PermissionCodes.ContractsManage)]
     [HttpPost("{id:guid}/cancel")]

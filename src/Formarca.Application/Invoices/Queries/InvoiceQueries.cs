@@ -3,6 +3,7 @@ using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Application.Invoices.Commands;
+using Formarca.Domain.Contracts;
 using Formarca.Domain.Invoices;
 using MediatR;
 using Microsoft.EntityFrameworkCore;

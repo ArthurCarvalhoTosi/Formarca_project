@@ -8,5 +8,12 @@
     "Key": "",
     "AccessTokenMinutes": 30,
     "RefreshTokenDays": 14
+  },
+  "Autentique": {
+    "ApiKey": "",
+    "OrganizationId": null,
+    "Sandbox": true,
+    "WebhookSecret": "",
+    "FormarcaSignerEmail": ""
   }
 }

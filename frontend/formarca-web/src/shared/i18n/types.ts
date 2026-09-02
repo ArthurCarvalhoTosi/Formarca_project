@@ -321,16 +321,18 @@ export type Dictionary = {
     issue: string
     issueSuccess: string
     issueFailed: string
-    sign: string
     signSuccess: string
     signFailed: string
-    signConfirmTitle: string
-    signConfirmContent: string
-    signHere: string
-    signHint: string
-    clearSignature: string
-    signatureRequired: string
     contractorSignLabel: string
+    autentiqueEmbedHint: string
+    autentiqueOpenInNewTab: string
+    autentiqueWaiting: string
+    autentiqueIframeFallback: string
+    autentiqueSimulateSign: string
+    autentiqueSignLinkFailed: string
+    autentiqueIframeTitle: string
+    autentiqueRejected: string
+    autentiqueLegacyUnavailable: string
     previewTitle: string
     previewFailed: string
     legalTextHint: string

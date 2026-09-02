@@ -81,7 +81,7 @@ public class ContractQueryTests
         Assert.Equal("application/pdf", file.ContentType);
         Assert.Contains("preview.pdf", file.FileName);
         Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(file.Content));
-        Assert.True(documents.PdfModels[0].StampFormarcaSignature);
+        Assert.False(documents.PdfModels[0].StampFormarcaSignature);
     }
 
     [Fact]

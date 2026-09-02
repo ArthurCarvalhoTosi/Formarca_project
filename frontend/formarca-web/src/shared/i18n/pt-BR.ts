@@ -304,18 +304,21 @@ export const ptBR: Dictionary = {
     issue: 'Emitir',
     issueSuccess: 'Contrato emitido.',
     issueFailed: 'Não foi possível emitir o contrato.',
-    sign: 'Confirmar assinatura',
     signSuccess: 'Assinatura registrada.',
     signFailed: 'Não foi possível registrar a assinatura.',
-    signConfirmTitle: 'Confirmar assinatura do cliente?',
-    signConfirmContent:
-      'O contrato passará a assinado e a fatura será gerada para pagamento.',
-    signHere: 'Assine aqui',
-    signHint:
-      'Assine no campo do contratante. A assinatura da FOR MARCA já consta no documento.',
-    clearSignature: 'Limpar assinatura',
-    signatureRequired: 'Desenhe a assinatura do contratante para confirmar.',
     contractorSignLabel: 'Assinatura do contratante',
+    autentiqueEmbedHint:
+      'Assine o contrato no painel da Autentique. A Formarca já assinou. O status atualiza automaticamente após a assinatura.',
+    autentiqueOpenInNewTab: 'Abrir em nova aba',
+    autentiqueWaiting: 'Aguardando a assinatura na Autentique…',
+    autentiqueIframeFallback:
+      'Se o quadro não carregar, abra a assinatura em uma nova aba.',
+    autentiqueSimulateSign: 'Simular assinatura Autentique',
+    autentiqueSignLinkFailed: 'Não foi possível obter o link de assinatura.',
+    autentiqueIframeTitle: 'Assinatura Autentique',
+    autentiqueRejected: 'A Autentique recusou este documento. O contrato não foi assinado.',
+    autentiqueLegacyUnavailable:
+      'Este contrato não tem assinatura Autentique. Emita novamente para assinar pelo link.',
     previewTitle: 'Pré-visualização do PDF',
     previewFailed: 'Não foi possível carregar a pré-visualização do PDF.',
     legalTextHint:

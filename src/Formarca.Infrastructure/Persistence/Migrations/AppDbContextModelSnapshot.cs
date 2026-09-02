@@ -116,6 +116,22 @@ namespace Formarca.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("AutentiqueDocumentId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("AutentiqueSignUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<string>("AutentiqueSignerPublicId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("AutentiqueStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("BodyMarkdown")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -222,6 +238,10 @@ namespace Formarca.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(8)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AutentiqueDocumentId")
+                        .IsUnique()
+                        .HasFilter("[AutentiqueDocumentId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("BrandId");
 

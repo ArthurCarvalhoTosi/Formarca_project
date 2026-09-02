@@ -1,14 +1,14 @@
 import { mockFunnel } from '@/features/funnel/mockStore'
 import { apiDownload, apiFetchBlob, apiRequest, triggerBlobDownload } from '@/shared/api/client'
-import { asList, toQuery } from '@/shared/api/types'
+import { ApiError, asList, toQuery } from '@/shared/api/types'
 import { env } from '@/shared/config/env'
-import { unwrapPngBase64 } from './signature'
-import type {
-  Contract,
-  ContractListFilters,
-  PreIssueContractRequest,
-  SignContractRequest,
-  UpdateContractRequest,
+import {
+  parseContractSignLink,
+  type Contract,
+  type ContractListFilters,
+  type ContractSignLink,
+  type PreIssueContractRequest,
+  type UpdateContractRequest,
 } from './types'
 
 function toClassesSnapshot(classes: number[] | string | undefined | null): string | undefined {
@@ -67,13 +67,21 @@ export const contractsApi = {
     return apiRequest<Contract>(`/api/contracts/${id}/issue`, { method: 'POST' })
   },
 
-  async sign(id: string, payload: SignContractRequest): Promise<Contract> {
-    const signaturePngBase64 = unwrapPngBase64(payload.signaturePngBase64)
-    if (env.mockAuth) return mockFunnel.signContract(id, { signaturePngBase64 })
-    return apiRequest<Contract>(`/api/contracts/${id}/sign`, {
-      method: 'POST',
-      body: { signaturePngBase64 },
-    })
+  async getSignLink(id: string): Promise<ContractSignLink> {
+    if (env.mockAuth) return mockFunnel.getContractSignLink(id)
+    const data = await apiRequest<unknown>(`/api/contracts/${id}/sign-link`)
+    const parsed = parseContractSignLink(data)
+    if (!parsed) {
+      throw new ApiError(502, 'Signature link response did not include signUrl', data)
+    }
+    return parsed
+  },
+
+  async simulateAutentiqueSign(id: string): Promise<Contract> {
+    if (!env.mockAuth) {
+      throw new ApiError(400, 'Autentique simulation is only available in mock mode')
+    }
+    return mockFunnel.simulateAutentiqueSign(id)
   },
 
   async preview(id: string): Promise<Blob> {

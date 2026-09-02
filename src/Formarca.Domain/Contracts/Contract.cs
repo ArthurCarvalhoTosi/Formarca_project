@@ -45,6 +45,14 @@ public class Contract : Entity, ITenantScoped
 
     public byte[]? ClientSignaturePng { get; private set; }
 
+    public string? AutentiqueDocumentId { get; private set; }
+
+    public string? AutentiqueSignerPublicId { get; private set; }
+
+    public string? AutentiqueSignUrl { get; private set; }
+
+    public string? AutentiqueStatus { get; private set; }
+
     public ContractStatus Status { get; private set; } = ContractStatus.PreIssued;
 
     public DateTime FormarcaSignedAt { get; private set; }
@@ -221,6 +229,35 @@ public class Contract : Entity, ITenantScoped
         ClientSignedAt = now;
         SignedAtUtc = now;
         Status = ContractStatus.Signed;
+        if (!string.IsNullOrWhiteSpace(AutentiqueDocumentId)
+            && AutentiqueStatus != AutentiqueDocumentStatus.Rejected)
+        {
+            AutentiqueStatus = AutentiqueDocumentStatus.Finished;
+        }
+
+        MarkUpdated();
+    }
+
+    public void AttachAutentiqueSigning(string documentId, string? signerPublicId, string? signUrl)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        AutentiqueDocumentId = documentId.Trim();
+        AutentiqueSignerPublicId = TrimToNull(signerPublicId);
+        AutentiqueSignUrl = TrimToNull(signUrl);
+        AutentiqueStatus = AutentiqueDocumentStatus.Pending;
+        MarkUpdated();
+    }
+
+    public void SetAutentiqueSignUrl(string signUrl)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(signUrl);
+        AutentiqueSignUrl = signUrl.Trim();
+        MarkUpdated();
+    }
+
+    public void MarkAutentiqueRejected()
+    {
+        AutentiqueStatus = AutentiqueDocumentStatus.Rejected;
         MarkUpdated();
     }
 
@@ -281,6 +318,9 @@ public class Contract : Entity, ITenantScoped
 
     private static string TrimOrEmpty(string? value) =>
         string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+
+    private static string? TrimToNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string NormalizeState(string? state) =>
         string.IsNullOrWhiteSpace(state) ? string.Empty : state.Trim().ToUpperInvariant();
