@@ -13,8 +13,22 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
 {
     public const string GraphqlUrl = "https://api.autentique.com.br/v2/graphql";
 
-    private const string CreateDocumentMutation = """
-        mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!, $organizationId: Int, $sandbox: Boolean) {
+    private const string CreateDocumentMutationWithoutOrg = """
+        mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!, $sandbox: Boolean) {
+          createDocument(document: $document, signers: $signers, file: $file, sandbox: $sandbox) {
+            id
+            signatures {
+              public_id
+              name
+              email
+              link { short_link }
+            }
+          }
+        }
+        """;
+
+    private const string CreateDocumentMutationWithOrg = """
+        mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!, $organizationId: Int!, $sandbox: Boolean) {
           createDocument(document: $document, signers: $signers, file: $file, organization_id: $organizationId, sandbox: $sandbox) {
             id
             signatures {
@@ -27,8 +41,14 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
         }
         """;
 
-    private const string SignDocumentMutation = """
-        mutation SignDocument($documentId: UUID!, $organizationId: Int) {
+    private const string SignDocumentMutationWithoutOrg = """
+        mutation SignDocument($documentId: UUID!) {
+          signDocument(id: $documentId)
+        }
+        """;
+
+    private const string SignDocumentMutationWithOrg = """
+        mutation SignDocument($documentId: UUID!, $organizationId: Int!) {
           signDocument(id: $documentId, organization_id: $organizationId)
         }
         """;
@@ -41,7 +61,7 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
 
     private const string DocumentQuery = """
         query Document($id: UUID!) {
-          document(id: $id) { files { signed } }
+          document(id: $id) { files { original signed pades } }
         }
         """;
 
@@ -95,14 +115,17 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
                 ClientSigner(request, lastPage)
             },
             ["file"] = null,
-            ["organizationId"] = OrganizationIdOrNull(),
             ["sandbox"] = _options.Sandbox
         };
+        if (HasOrganizationId)
+        {
+            variables["organizationId"] = OrganizationIdOrNull();
+        }
 
         var operations = JsonSerializer.Serialize(
             new Dictionary<string, object?>
             {
-                ["query"] = CreateDocumentMutation,
+                ["query"] = HasOrganizationId ? CreateDocumentMutationWithOrg : CreateDocumentMutationWithoutOrg,
                 ["variables"] = variables
             },
             JsonOptions);
@@ -158,13 +181,15 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
         EnsureConfigured();
+        var variables = new Dictionary<string, object?> { ["documentId"] = documentId };
+        if (HasOrganizationId)
+        {
+            variables["organizationId"] = OrganizationIdOrNull();
+        }
+
         using var json = await PostGraphqlAsync(
-            SignDocumentMutation,
-            new Dictionary<string, object?>
-            {
-                ["documentId"] = documentId,
-                ["organizationId"] = OrganizationIdOrNull()
-            },
+            HasOrganizationId ? SignDocumentMutationWithOrg : SignDocumentMutationWithoutOrg,
+            variables,
             cancellationToken);
 
         if (!json.RootElement.TryGetProperty("data", out var data)
@@ -201,6 +226,19 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
 
     public async Task<byte[]> DownloadSignedPdfAsync(string documentId, CancellationToken cancellationToken = default)
     {
+        var bytes = await TryDownloadCurrentPdfAsync(documentId, cancellationToken);
+        if (bytes is null || bytes.Length == 0)
+        {
+            throw new ConflictException("Autentique signed PDF is not available yet.");
+        }
+
+        return bytes;
+    }
+
+    public async Task<byte[]?> TryDownloadCurrentPdfAsync(
+        string documentId,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
         EnsureConfigured();
         using var json = await PostGraphqlAsync(
@@ -208,15 +246,20 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
             new Dictionary<string, object?> { ["id"] = documentId },
             cancellationToken);
 
-        var url = json.RootElement
-            .GetProperty("data")
-            .GetProperty("document")
-            .GetProperty("files")
-            .GetProperty("signed")
-            .GetString();
+        if (!json.RootElement.TryGetProperty("data", out var data)
+            || !data.TryGetProperty("document", out var document)
+            || document.ValueKind != JsonValueKind.Object
+            || !document.TryGetProperty("files", out var files)
+            || files.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var url = ReadString(files, "signed")
+            ?? ReadString(files, "pades");
         if (string.IsNullOrWhiteSpace(url))
         {
-            throw new ConflictException("Autentique signed PDF is not available yet.");
+            return null;
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -224,16 +267,11 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
         using var response = await http.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new ConflictException($"Failed to download Autentique signed PDF ({(int)response.StatusCode}).");
+            return null;
         }
 
         var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-        if (bytes.Length == 0)
-        {
-            throw new ConflictException("Autentique signed PDF was empty.");
-        }
-
-        return bytes;
+        return bytes.Length == 0 ? null : bytes;
     }
 
     private Dictionary<string, object?> FormarcaSigner(int lastPage) =>
@@ -241,7 +279,7 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
         {
             ["email"] = FormarcaSignerEmail.Trim(),
             ["action"] = "SIGN",
-            ["positions"] = Positions(x: "18.0", lastPage)
+            ["positions"] = Positions(x: SignatureLayout.FormarcaX, lastPage)
         };
 
     private static Dictionary<string, object?> ClientSigner(AutentiqueCreateDocumentRequest request, int lastPage)
@@ -250,7 +288,8 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
         {
             ["name"] = request.ClientName,
             ["action"] = "SIGN",
-            ["positions"] = Positions(x: "62.0", lastPage)
+            ["delivery_method"] = "DELIVERY_METHOD_LINK",
+            ["positions"] = Positions(x: SignatureLayout.ClientX, lastPage)
         };
 
         if (!string.IsNullOrWhiteSpace(request.ClientEmail))
@@ -266,14 +305,24 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
         return signer;
     }
 
+    private static class SignatureLayout
+    {
+        public const string FormarcaX = "640";
+        public const string ClientX = "1780";
+        public const string SignatureY = "450";
+        public const string DateY = "530";
+    }
+
     private static object[] Positions(string x, int lastPage) =>
     [
-        new Dictionary<string, object?> { ["x"] = x, ["y"] = "78.0", ["z"] = lastPage, ["element"] = "SIGNATURE" },
-        new Dictionary<string, object?> { ["x"] = x, ["y"] = "88.0", ["z"] = lastPage, ["element"] = "DATE" }
+        new Dictionary<string, object?> { ["x"] = x, ["y"] = SignatureLayout.SignatureY, ["z"] = lastPage, ["element"] = "SIGNATURE" },
+        new Dictionary<string, object?> { ["x"] = x, ["y"] = SignatureLayout.DateY, ["z"] = lastPage, ["element"] = "DATE" }
     ];
 
-    private int? OrganizationIdOrNull() =>
-        _options.OrganizationId is > 0 ? _options.OrganizationId : null;
+    private bool HasOrganizationId => _options.OrganizationId is > 0;
+
+    private int OrganizationIdOrNull() =>
+        _options.OrganizationId ?? 0;
 
     private void EnsureConfigured()
     {
@@ -325,20 +374,59 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
             throw new ConflictException("Autentique returned an invalid response.");
         }
 
-        if (json.RootElement.TryGetProperty("errors", out var errors)
-            && errors.ValueKind == JsonValueKind.Array
-            && errors.GetArrayLength() > 0)
+        try
         {
-            var message = errors[0].TryGetProperty("message", out var messageElement)
-                ? messageElement.GetString()
-                : null;
+            if (json.RootElement.TryGetProperty("errors", out var errors)
+                && errors.ValueKind == JsonValueKind.Array
+                && errors.GetArrayLength() > 0)
+            {
+                throw new ConflictException(FormatGraphqlErrors(errors));
+            }
+
+            return json;
+        }
+        catch
+        {
             json.Dispose();
-            throw new ConflictException(
-                string.IsNullOrWhiteSpace(message) ? "Autentique GraphQL error." : message);
+            throw;
+        }
+    }
+
+    private static string FormatGraphqlErrors(JsonElement errors)
+    {
+        var parts = new List<string>();
+        foreach (var error in errors.EnumerateArray())
+        {
+            var message = ReadString(error, "message") ?? "Autentique GraphQL error.";
+            if (error.TryGetProperty("extensions", out var extensions)
+                && extensions.ValueKind == JsonValueKind.Object
+                && extensions.TryGetProperty("validation", out var validation)
+                && validation.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var field in validation.EnumerateObject())
+                {
+                    var reasons = field.Value.ValueKind == JsonValueKind.Array
+                        ? string.Join(", ", field.Value.EnumerateArray().Select(ReadScalar))
+                        : ReadScalar(field.Value);
+                    parts.Add($"{field.Name}: {reasons}");
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(message))
+            {
+                parts.Add(message);
+            }
         }
 
-        return json;
+        return parts.Count == 0 ? "Autentique GraphQL error." : string.Join("; ", parts);
     }
+
+    private static string ReadScalar(JsonElement value) =>
+        value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? value.GetRawText(),
+            JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False => value.GetRawText(),
+            _ => value.GetRawText().Trim('"')
+        };
 
     private static string? ReadString(JsonElement element, string name)
     {

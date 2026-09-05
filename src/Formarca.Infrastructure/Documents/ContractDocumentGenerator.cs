@@ -54,7 +54,8 @@ public sealed class ContractDocumentGenerator : IContractDocumentGenerator
                 {
                     column.Spacing(6);
                     MarkdownPdfRenderer.Render(column, model.BodyMarkdown);
-                    column.Item().PaddingTop(24).Element(block => ComposeSignatures(block, model));
+                    column.Item().PageBreak();
+                    column.Item().Element(block => ComposeSignatures(block, model));
                 });
                 page.Footer().AlignCenter().DefaultTextStyle(style => style.FontSize(8).FontColor(Colors.Grey.Medium)).Text(text =>
                 {
@@ -118,7 +119,7 @@ public sealed class ContractDocumentGenerator : IContractDocumentGenerator
                 SignatureColumn(
                     left,
                     "FOR MARCA LTDA",
-                    model.StampFormarcaSignature ? _formarcaSignatureBytes ?? _logoBytes : null,
+                    model.StampFormarcaSignature ? _formarcaSignatureBytes : null,
                     model.StampFormarcaSignature
                         ? $"Assinado eletronicamente em {model.FormarcaSignedAt:dd/MM/yyyy HH:mm} UTC"
                         : null,

@@ -164,6 +164,10 @@ internal sealed class FakeAutentiqueClient : IAutentiqueClient
 
     public List<string> Downloads { get; } = [];
 
+    public bool CurrentPdfAvailable { get; set; }
+
+    public byte[]? CurrentPdf { get; set; }
+
     public bool VerifyWebhookSignature(string rawBody, string? signatureHeader)
     {
         if (UseRealHmac)
@@ -203,6 +207,17 @@ internal sealed class FakeAutentiqueClient : IAutentiqueClient
     {
         Downloads.Add(documentId);
         return Task.FromResult(SignedPdf);
+    }
+
+    public Task<byte[]?> TryDownloadCurrentPdfAsync(string documentId, CancellationToken cancellationToken = default)
+    {
+        Downloads.Add(documentId);
+        if (!CurrentPdfAvailable)
+        {
+            return Task.FromResult<byte[]?>(null);
+        }
+
+        return Task.FromResult<byte[]?>(CurrentPdf ?? SignedPdf);
     }
 }
 

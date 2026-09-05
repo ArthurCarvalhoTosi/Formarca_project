@@ -7,6 +7,7 @@ using Formarca.Domain.Contracts;
 using Formarca.Domain.Invoices;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection.Metadata.Ecma335;
 
 namespace Formarca.Application.Invoices.Queries;
 

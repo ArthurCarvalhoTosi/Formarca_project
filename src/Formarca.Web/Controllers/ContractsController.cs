@@ -120,7 +120,7 @@ public sealed class ContractsController(ISender sender) : ControllerBase
     public async Task<IActionResult> Issue(Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new IssueContractCommand(id), cancellationToken));
 
-    [Authorize(Policy = PermissionCodes.ContractsRead)]
+    [Authorize(Policy = PermissionCodes.ContractsSign)]
     [HttpGet("{id:guid}/sign-link")]
     public async Task<IActionResult> SignLink(Guid id, CancellationToken cancellationToken)
         => Ok(await sender.Send(new GetContractSignLinkQuery(id), cancellationToken));

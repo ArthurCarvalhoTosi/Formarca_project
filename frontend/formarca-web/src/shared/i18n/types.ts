@@ -323,8 +323,11 @@ export type Dictionary = {
     issueFailed: string
     signSuccess: string
     signFailed: string
+    signCta: string
     contractorSignLabel: string
     autentiqueEmbedHint: string
+    autentiqueAdminWaiting: string
+    autentiqueAdminWaitingHint: string
     autentiqueOpenInNewTab: string
     autentiqueWaiting: string
     autentiqueIframeFallback: string

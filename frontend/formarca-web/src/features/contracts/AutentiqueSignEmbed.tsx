@@ -27,6 +27,22 @@ export function AutentiqueSignEmbed({
       <Typography.Paragraph type="secondary">
         {t('contracts.autentiqueEmbedHint')}
       </Typography.Paragraph>
+      <Space wrap style={{ marginBottom: 16 }}>
+        <Button
+          disabled={!signUrl}
+          onClick={() => {
+            if (!signUrl) return
+            window.open(signUrl, '_blank', 'noopener,noreferrer')
+          }}
+        >
+          {t('contracts.autentiqueOpenInNewTab')}
+        </Button>
+        {showSimulate ? (
+          <Button loading={simulatePending} onClick={onSimulate}>
+            {t('contracts.autentiqueSimulateSign')}
+          </Button>
+        ) : null}
+      </Space>
       {isLoadingLink && !signUrl ? <Spin tip={t('common.loading')} /> : null}
       {linkErrorMessage && !signUrl ? (
         <Alert type="error" showIcon message={linkErrorMessage} style={{ marginBottom: 16 }} />
@@ -35,9 +51,11 @@ export function AutentiqueSignEmbed({
         <iframe
           src={signUrl}
           title={t('contracts.autentiqueIframeTitle')}
+          allow="clipboard-write"
           style={{
             width: '100%',
-            height: 720,
+            height: '70vh',
+            minHeight: 520,
             border: '1px solid rgba(36, 36, 36, 0.15)',
             borderRadius: 8,
             background: '#fff',
@@ -61,22 +79,6 @@ export function AutentiqueSignEmbed({
           style={{ marginTop: signUrl ? 16 : 0 }}
         />
       )}
-      <Space wrap style={{ marginTop: 16 }}>
-        <Button
-          disabled={!signUrl}
-          onClick={() => {
-            if (!signUrl) return
-            window.open(signUrl, '_blank', 'noopener,noreferrer')
-          }}
-        >
-          {t('contracts.autentiqueOpenInNewTab')}
-        </Button>
-        {showSimulate ? (
-          <Button type="primary" loading={simulatePending} onClick={onSimulate}>
-            {t('contracts.autentiqueSimulateSign')}
-          </Button>
-        ) : null}
-      </Space>
     </div>
   )
 }

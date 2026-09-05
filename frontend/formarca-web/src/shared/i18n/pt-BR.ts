@@ -306,10 +306,14 @@ export const ptBR: Dictionary = {
     issueFailed: 'Não foi possível emitir o contrato.',
     signSuccess: 'Assinatura registrada.',
     signFailed: 'Não foi possível registrar a assinatura.',
+    signCta: 'Assinar contrato',
     contractorSignLabel: 'Assinatura do contratante',
     autentiqueEmbedHint:
-      'Assine o contrato no painel da Autentique. A Formarca já assinou. O status atualiza automaticamente após a assinatura.',
-    autentiqueOpenInNewTab: 'Abrir em nova aba',
+      'Assine nesta tela. A Formarca já assinou. Não é necessário esperar o e-mail da Autentique — o status atualiza automaticamente após a assinatura.',
+    autentiqueAdminWaiting: 'Aguardando a assinatura do contratante',
+    autentiqueAdminWaitingHint:
+      'O cliente assina pelo botão Assinar contrato no painel (Contratos), com o usuário da empresa. A Formarca já assinou automaticamente. Esta tela do admin não assina pelo cliente.',
+    autentiqueOpenInNewTab: 'Abrir assinatura em nova aba',
     autentiqueWaiting: 'Aguardando a assinatura na Autentique…',
     autentiqueIframeFallback:
       'Se o quadro não carregar, abra a assinatura em uma nova aba.',

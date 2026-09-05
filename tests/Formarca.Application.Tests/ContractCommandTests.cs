@@ -218,7 +218,7 @@ public class ContractCommandTests
             autentique).Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None);
 
         var handler = new GetContractSignLinkQueryHandler(
-            new FakeCurrentUser { IsPlatformAdmin = true },
+            new FakeCurrentUser { IsPlatformAdmin = false, TenantId = fixture.Tenant.Id },
             fixture.Repository,
             new FakeTenantContext(),
             autentique);
@@ -228,6 +228,32 @@ public class ContractCommandTests
         Assert.Equal("https://assina.ae/regenerated", result.SignUrl);
         Assert.Equal(["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"], autentique.LinkRequests);
         Assert.Equal("https://assina.ae/regenerated", fixture.Contract.AutentiqueSignUrl);
+    }
+
+    [Fact]
+    public async Task SignLink_Rejected_For_PlatformAdmin()
+    {
+        var fixture = Seed(withPreIssued: true);
+        var documents = new FakeContractDocumentGenerator();
+        var autentique = new FakeAutentiqueClient();
+        await new IssueContractCommandHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            fixture.Repository,
+            new FakeTenantContext(),
+            documents,
+            autentique).Handle(new IssueContractCommand(fixture.Contract!.Id), CancellationToken.None);
+
+        var handler = new GetContractSignLinkQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            fixture.Repository,
+            new FakeTenantContext(),
+            autentique);
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
+            handler.Handle(new GetContractSignLinkQuery(fixture.Contract.Id), CancellationToken.None));
+
+        Assert.Contains("tenant panel", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(autentique.LinkRequests);
     }
 
     [Fact]

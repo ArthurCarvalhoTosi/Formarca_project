@@ -14,6 +14,21 @@ public class ContractDocumentGeneratorTests
 
         Assert.True(pdf.Length > 500);
         Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+        Assert.True(CountPdfPages(pdf) >= 2);
+    }
+
+    [Fact]
+    public void GeneratePdf_Puts_Signatures_On_A_Dedicated_Last_Page()
+    {
+        var generator = new ContractDocumentGenerator();
+        var shortPdf = generator.GeneratePdf(Model(clientSignature: null));
+        var longPdf = generator.GeneratePdf(Model(
+            clientSignature: null,
+            bodyMarkdown: string.Join('\n', Enumerable.Range(1, 40).Select(i => $"## CLÁUSULA {i}ª\n\nTexto da cláusula {i}."))));
+
+        Assert.True(CountPdfPages(shortPdf) >= 2);
+        Assert.True(CountPdfPages(longPdf) >= 2);
+        Assert.True(CountPdfPages(longPdf) > CountPdfPages(shortPdf));
     }
 
     [Fact]
@@ -50,7 +65,7 @@ public class ContractDocumentGeneratorTests
         Assert.Throws<InvalidOperationException>(() => provider.GetTemplate("does-not-exist"));
     }
 
-    private static ContractDocumentModel Model(byte[]? clientSignature) =>
+    private static ContractDocumentModel Model(byte[]? clientSignature, string? bodyMarkdown = null) =>
         new(
             "FM-2026-000001",
             "11222333000181",
@@ -69,7 +84,7 @@ public class ContractDocumentGeneratorTests
             "SP",
             "01310100",
             ContractTemplateKeys.DefaultMinimumTerm,
-            """
+            bodyMarkdown ?? """
             # CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 
             **CONTRATANTE:** Acme Ltd
@@ -80,4 +95,56 @@ public class ContractDocumentGeneratorTests
             """,
             clientSignature,
             StampFormarcaSignature: true);
+
+    private static int CountPdfPages(byte[] pdf)
+    {
+        var text = System.Text.Encoding.ASCII.GetString(pdf);
+        var count = 0;
+        var index = 0;
+        const string marker = "/Type /Page";
+        while (true)
+        {
+            var found = text.IndexOf(marker, index, StringComparison.Ordinal);
+            if (found < 0)
+            {
+                break;
+            }
+
+            var after = found + marker.Length;
+            if (after < text.Length && text[after] == 's')
+            {
+                index = after + 1;
+                continue;
+            }
+
+            count++;
+            index = after;
+        }
+
+        if (count == 0)
+        {
+            const string compact = "/Type/Page";
+            index = 0;
+            while (true)
+            {
+                var found = text.IndexOf(compact, index, StringComparison.Ordinal);
+                if (found < 0)
+                {
+                    break;
+                }
+
+                var after = found + compact.Length;
+                if (after < text.Length && text[after] == 's')
+                {
+                    index = after + 1;
+                    continue;
+                }
+
+                count++;
+                index = after;
+            }
+        }
+
+        return Math.Max(count, 1);
+    }
 }

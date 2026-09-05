@@ -242,7 +242,20 @@ public sealed class IssueContractCommandHandler(
         await autentique.SignDocumentAsync(created.DocumentId, cancellationToken);
         contract.AttachAutentiqueSigning(created.DocumentId, created.ClientSignerPublicId, signUrl);
 
-        await ContractDocuments.UpsertPdfAsync(repository, contract, ContractFileKind.Issued, pdf, cancellationToken);
+        var issuedPdf = pdf;
+        try
+        {
+            var autentiquePdf = await autentique.TryDownloadCurrentPdfAsync(created.DocumentId, cancellationToken);
+            if (autentiquePdf is { Length: > 0 })
+            {
+                issuedPdf = autentiquePdf;
+            }
+        }
+        catch (ConflictException)
+        {
+        }
+
+        await ContractDocuments.UpsertPdfAsync(repository, contract, ContractFileKind.Issued, issuedPdf, cancellationToken);
         await repository.CommitAsync(cancellationToken);
         return contract.ToDto();
     }

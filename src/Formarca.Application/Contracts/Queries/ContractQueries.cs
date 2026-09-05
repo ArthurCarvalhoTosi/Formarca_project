@@ -145,7 +145,8 @@ public sealed class PreviewContractQueryHandler(
     ICurrentUser currentUser,
     IGenericRepository repository,
     ITenantContext tenantContext,
-    IContractDocumentGenerator documents) : IRequestHandler<PreviewContractQuery, ContractDocumentFile>
+    IContractDocumentGenerator documents,
+    IAutentiqueClient autentique) : IRequestHandler<PreviewContractQuery, ContractDocumentFile>
 {
     public async Task<ContractDocumentFile> Handle(PreviewContractQuery request, CancellationToken cancellationToken)
     {
@@ -159,15 +160,48 @@ public sealed class PreviewContractQueryHandler(
             throw new ConflictException("Contract preview is available for pre-issued, issued, or signed contracts.");
         }
 
-        if (contract.Status is ContractStatus.Issued or ContractStatus.Signed)
+        if (contract.Status == ContractStatus.Signed)
         {
-            var kind = contract.PersistedFileKind;
-            var file = await repository.FirstOrDefaultAsync<ContractFile>(
-                f => f.ContractId == contract.Id && f.Kind == kind && !f.IsDeleted,
+            var signed = await repository.FirstOrDefaultAsync<ContractFile>(
+                f => f.ContractId == contract.Id && f.Kind == ContractFileKind.Signed && !f.IsDeleted,
                 cancellationToken);
-            if (file is not null)
+            if (signed is not null)
             {
-                return new ContractDocumentFile(file.FileName, file.ContentType, file.Content);
+                return new ContractDocumentFile(signed.FileName, signed.ContentType, signed.Content);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.AutentiqueDocumentId)
+            && contract.Status is ContractStatus.Issued or ContractStatus.Signed)
+        {
+            byte[]? autentiquePdf = null;
+            try
+            {
+                autentiquePdf = await autentique.TryDownloadCurrentPdfAsync(
+                    contract.AutentiqueDocumentId,
+                    cancellationToken);
+            }
+            catch (ConflictException)
+            {
+            }
+
+            if (autentiquePdf is { Length: > 0 })
+            {
+                var kind = contract.PersistedFileKind;
+                await ContractDocuments.UpsertPdfAsync(repository, contract, kind, autentiquePdf, cancellationToken);
+                await repository.CommitAsync(cancellationToken);
+                return new ContractDocumentFile($"{contract.Code}.pdf", "application/pdf", autentiquePdf);
+            }
+        }
+
+        if (contract.Status == ContractStatus.Issued)
+        {
+            var issued = await repository.FirstOrDefaultAsync<ContractFile>(
+                f => f.ContractId == contract.Id && f.Kind == ContractFileKind.Issued && !f.IsDeleted,
+                cancellationToken);
+            if (issued is not null)
+            {
+                return new ContractDocumentFile(issued.FileName, issued.ContentType, issued.Content);
             }
         }
 
@@ -234,6 +268,11 @@ public sealed class GetContractSignLinkQueryHandler(
 {
     public async Task<ContractSignLinkDto> Handle(GetContractSignLinkQuery request, CancellationToken cancellationToken)
     {
+        if (currentUser.IsPlatformAdmin)
+        {
+            throw new ForbiddenException("The client signs this contract in the tenant panel.");
+        }
+
         CommercialAccess.IgnoreTenantFiltersIfAdmin(tenantContext, currentUser);
         var contract = await repository.FirstOrDefaultAsync<Contract>(
             c => c.Id == request.Id && !c.IsDeleted, cancellationToken)

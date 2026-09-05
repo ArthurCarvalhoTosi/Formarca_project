@@ -306,10 +306,14 @@ export const en: Dictionary = {
     issueFailed: 'Could not issue the contract.',
     signSuccess: 'Signature recorded.',
     signFailed: 'Could not record the signature.',
+    signCta: 'Sign contract',
     contractorSignLabel: 'Contractor signature',
     autentiqueEmbedHint:
-      'Sign the contract in the Autentique panel. Formarca has already signed. The status updates automatically after signing.',
-    autentiqueOpenInNewTab: 'Open in new tab',
+      'Sign on this screen. Formarca has already signed. You do not need to wait for the Autentique email — the status updates automatically after signing.',
+    autentiqueAdminWaiting: 'Waiting for the contractor signature',
+    autentiqueAdminWaitingHint:
+      'The client signs with the Sign contract button in the panel (Contracts), using the company user. Formarca has already signed automatically. This admin screen does not sign for the client.',
+    autentiqueOpenInNewTab: 'Open signature in a new tab',
     autentiqueWaiting: 'Waiting for the Autentique signature…',
     autentiqueIframeFallback:
       'If the frame does not load, open the signature in a new tab.',

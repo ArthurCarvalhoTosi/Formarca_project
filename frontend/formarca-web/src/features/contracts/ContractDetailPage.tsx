@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Row,
   Select,
   Space,
@@ -15,7 +16,7 @@ import {
   Typography,
 } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NICE_CLASSES } from '@/features/brands/types'
 import { PayInvoicePanel } from '@/features/invoices/PayInvoicePanel'
@@ -84,6 +85,7 @@ export function ContractDetailPage() {
   const [form] = Form.useForm<UpdateContractRequest>()
   const previousStatusRef = useRef<string | undefined>(undefined)
   const hasLoadedStatusRef = useRef(false)
+  const [signModalOpen, setSignModalOpen] = useState(false)
 
   const query = useQuery({
     queryKey: ['contracts', id],
@@ -100,10 +102,12 @@ export function ContractDetailPage() {
   const canPreview = Boolean(id) && PREVIEWABLE_STATUSES.has(query.data?.status ?? '')
   const canSign =
     query.data?.status === 'Issued' &&
-    (isPlatformAdmin || (user?.permissions ?? []).includes('contracts.sign'))
+    !isPlatformAdmin &&
+    (user?.permissions ?? []).includes('contracts.sign')
   const isRejected = isAutentiqueRejected(query.data?.autentiqueStatus)
   const hasAutentique = Boolean(query.data && hasAutentiqueDocument(query.data))
   const contractSignUrl = query.data?.autentiqueSignUrl?.trim() || null
+  const showAdminClientSignStatus = isPlatformAdmin && query.data?.status === 'Issued'
 
   const previewQuery = useQuery({
     queryKey: ['contracts', id, 'preview'],
@@ -144,6 +148,7 @@ export function ContractDetailPage() {
     hasLoadedStatusRef.current = true
     previousStatusRef.current = status
     if (!becameSigned) return
+    setSignModalOpen(false)
     void Promise.all([
       queryClient.invalidateQueries({ queryKey: ['contracts'] }),
       queryClient.invalidateQueries({ queryKey: ['invoices'] }),
@@ -245,6 +250,38 @@ export function ContractDetailPage() {
         {t('contracts.colClientSign')}:{' '}
         {contract.clientSignedAt ? t('contracts.signed') : t('contracts.notSigned')}
       </Typography.Paragraph>
+
+      <Space wrap style={{ marginBottom: 16 }}>
+        {canIssue ? (
+          <Button
+            type="primary"
+            loading={issueMutation.isPending}
+            onClick={() => issueMutation.mutate()}
+          >
+            {t('contracts.issue')}
+          </Button>
+        ) : null}
+        {canSign && hasAutentique && !isRejected ? (
+          <Button
+            type="primary"
+            loading={signLinkQuery.isFetching && !embedSignUrl}
+            onClick={() => {
+              setSignModalOpen(true)
+              if (signLinkQuery.isError) void signLinkQuery.refetch()
+            }}
+          >
+            {t('contracts.signCta')}
+          </Button>
+        ) : null}
+        {canDownload ? (
+          <Button
+            loading={downloadMutation.isPending}
+            onClick={() => downloadMutation.mutate()}
+          >
+            {t('contracts.downloadPdf')}
+          </Button>
+        ) : null}
+      </Space>
 
       {(updateMutation.isError ||
         (issueMutation.isError && !isFormValidationError(issueMutation.error)) ||
@@ -483,6 +520,30 @@ export function ContractDetailPage() {
         </Col>
         ) : null}
         <Col xs={24} xl={canEdit || isPlatformAdmin ? 12 : 24}>
+          {showAdminClientSignStatus ? (
+            <Card title={t('contracts.contractorSignLabel')} style={{ marginBottom: 16 }}>
+              {isRejected ? (
+                <Alert type="error" showIcon message={t('contracts.autentiqueRejected')} />
+              ) : (
+                <Alert
+                  type="info"
+                  showIcon
+                  message={t('contracts.autentiqueAdminWaiting')}
+                  description={t('contracts.autentiqueAdminWaitingHint')}
+                />
+              )}
+            </Card>
+          ) : null}
+          {canSign && hasAutentique && isRejected ? (
+            <Card title={t('contracts.contractorSignLabel')} style={{ marginBottom: 16 }}>
+              <Alert type="error" showIcon message={t('contracts.autentiqueRejected')} />
+            </Card>
+          ) : null}
+          {canSign && !hasAutentique ? (
+            <Card title={t('contracts.contractorSignLabel')} style={{ marginBottom: 16 }}>
+              <Alert type="warning" showIcon message={t('contracts.autentiqueLegacyUnavailable')} />
+            </Card>
+          ) : null}
           {canPreview ? (
             <Card title={t('contracts.previewTitle')} style={{ marginBottom: 16 }}>
               <PdfPreview
@@ -498,53 +559,37 @@ export function ContractDetailPage() {
               />
             </Card>
           ) : null}
-          {canSign && hasAutentique ? (
-            <Card title={t('contracts.contractorSignLabel')}>
-              <AutentiqueSignEmbed
-                signUrl={embedSignUrl}
-                isLoadingLink={signLinkQuery.isLoading}
-                linkErrorMessage={
-                  signLinkQuery.isError
-                    ? getApiErrorMessage(
-                        signLinkQuery.error,
-                        t('contracts.autentiqueSignLinkFailed'),
-                      )
-                    : null
-                }
-                isRejected={isRejected}
-                showSimulate={env.mockAuth && !isRejected}
-                simulatePending={simulateMutation.isPending}
-                onSimulate={() => simulateMutation.mutate()}
-              />
-            </Card>
-          ) : null}
-          {canSign && !hasAutentique ? (
-            <Card title={t('contracts.contractorSignLabel')}>
-              <Alert type="warning" showIcon message={t('contracts.autentiqueLegacyUnavailable')} />
-            </Card>
-          ) : null}
         </Col>
       </Row>
 
-      <Space wrap style={{ marginBottom: 24 }}>
-        {canIssue ? (
-          <Button
-            type="primary"
-            loading={issueMutation.isPending}
-            onClick={() => issueMutation.mutate()}
-          >
-            {t('contracts.issue')}
-          </Button>
-        ) : null}
-        {canDownload ? (
-          <Button
-            loading={downloadMutation.isPending}
-            onClick={() => downloadMutation.mutate()}
-          >
-            {t('contracts.downloadPdf')}
-          </Button>
-        ) : null}
-      </Space>
+      {canSign && hasAutentique ? (
+        <Modal
+          title={t('contracts.signCta')}
+          open={signModalOpen}
+          onCancel={() => setSignModalOpen(false)}
+          footer={null}
+          width="90%"
+          style={{ top: 24 }}
+          destroyOnHidden
+        >
+          <AutentiqueSignEmbed
+            signUrl={embedSignUrl}
+            isLoadingLink={signLinkQuery.isFetching}
+            linkErrorMessage={
+              signLinkQuery.isError
+                ? getApiErrorMessage(
+                    signLinkQuery.error,
+                    t('contracts.autentiqueSignLinkFailed'),
+                  )
+                : null
+            }
+            isRejected={isRejected}
+            showSimulate={env.mockAuth && !isRejected}
+            simulatePending={simulateMutation.isPending}
+            onSimulate={() => simulateMutation.mutate()}
+          />
+        </Modal>
+      ) : null}
 
       <PayInvoicePanel contractId={contract.id} contractStatus={contract.status} />
     </div>

@@ -29,4 +29,6 @@ public interface IAutentiqueClient
     Task<string> CreateLinkToSignatureAsync(string signerPublicId, CancellationToken cancellationToken = default);
 
     Task<byte[]> DownloadSignedPdfAsync(string documentId, CancellationToken cancellationToken = default);
+
+    Task<byte[]?> TryDownloadCurrentPdfAsync(string documentId, CancellationToken cancellationToken = default);
 }

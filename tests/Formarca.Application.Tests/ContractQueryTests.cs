@@ -74,7 +74,8 @@ public class ContractQueryTests
             new FakeCurrentUser { IsPlatformAdmin = true },
             repository,
             new FakeTenantContext(),
-            documents);
+            documents,
+            new FakeAutentiqueClient());
 
         var file = await handler.Handle(new PreviewContractQuery(contract.Id), CancellationToken.None);
 
@@ -82,6 +83,134 @@ public class ContractQueryTests
         Assert.Contains("preview.pdf", file.FileName);
         Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(file.Content));
         Assert.False(documents.PdfModels[0].StampFormarcaSignature);
+    }
+
+    [Fact]
+    public async Task Preview_Issued_Uses_Autentique_Pdf_When_Available()
+    {
+        var repository = Seed();
+        var contract = repository.Query<Contract>().Single(c => c.Code == "FM-2026-000001");
+        contract.UpdateSnapshot(
+            contract.CompanyDocument,
+            contract.RepresentativeDocument,
+            contract.BrandName,
+            contract.Classes,
+            contract.Amount,
+            "Acme Ltd",
+            "Av Paulista",
+            "100",
+            "São Paulo",
+            "SP",
+            "01310100",
+            ContractTemplateKeys.DefaultMinimumTerm,
+            "# Contrato");
+        contract.Issue();
+        contract.AttachAutentiqueSigning("autentique-doc-1", "signer-1", "https://assina.ae/x");
+        repository.Add(ContractFile.CreatePdf(
+            contract.TenantId,
+            contract.Id,
+            ContractFileKind.Issued,
+            $"{contract.Code}.pdf",
+            "%PDF-issued-unsigned"u8.ToArray()));
+
+        var documents = new FakeContractDocumentGenerator();
+        var autentique = new FakeAutentiqueClient { CurrentPdfAvailable = true };
+        var handler = new PreviewContractQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            repository,
+            new FakeTenantContext(),
+            documents,
+            autentique);
+
+        var file = await handler.Handle(new PreviewContractQuery(contract.Id), CancellationToken.None);
+
+        Assert.Equal("application/pdf", file.ContentType);
+        Assert.Equal("%PDF-autentique-signed", System.Text.Encoding.ASCII.GetString(file.Content));
+        Assert.Empty(documents.PdfModels);
+        Assert.Equal(["autentique-doc-1"], autentique.Downloads);
+    }
+
+    [Fact]
+    public async Task Preview_Issued_Without_Autentique_Pdf_Keeps_Persisted_File()
+    {
+        var repository = Seed();
+        var contract = repository.Query<Contract>().Single(c => c.Code == "FM-2026-000001");
+        contract.UpdateSnapshot(
+            contract.CompanyDocument,
+            contract.RepresentativeDocument,
+            contract.BrandName,
+            contract.Classes,
+            contract.Amount,
+            "Acme Ltd",
+            "Av Paulista",
+            "100",
+            "São Paulo",
+            "SP",
+            "01310100",
+            ContractTemplateKeys.DefaultMinimumTerm,
+            "# Contrato");
+        contract.Issue();
+        repository.Add(ContractFile.CreatePdf(
+            contract.TenantId,
+            contract.Id,
+            ContractFileKind.Issued,
+            $"{contract.Code}.pdf",
+            "%PDF-issued-unsigned"u8.ToArray()));
+
+        var documents = new FakeContractDocumentGenerator();
+        var handler = new PreviewContractQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            repository,
+            new FakeTenantContext(),
+            documents,
+            new FakeAutentiqueClient());
+
+        var file = await handler.Handle(new PreviewContractQuery(contract.Id), CancellationToken.None);
+
+        Assert.Equal("%PDF-issued-unsigned", System.Text.Encoding.ASCII.GetString(file.Content));
+        Assert.Empty(documents.PdfModels);
+    }
+
+    [Fact]
+    public async Task Preview_Signed_Returns_Persisted_Signed_Pdf()
+    {
+        var repository = Seed();
+        var contract = repository.Query<Contract>().Single(c => c.Code == "FM-2026-000001");
+        contract.UpdateSnapshot(
+            contract.CompanyDocument,
+            contract.RepresentativeDocument,
+            contract.BrandName,
+            contract.Classes,
+            contract.Amount,
+            "Acme Ltd",
+            "Av Paulista",
+            "100",
+            "São Paulo",
+            "SP",
+            "01310100",
+            ContractTemplateKeys.DefaultMinimumTerm,
+            "# Contrato");
+        contract.Issue();
+        contract.SignByClient();
+        repository.Add(ContractFile.CreatePdf(
+            contract.TenantId,
+            contract.Id,
+            ContractFileKind.Signed,
+            $"{contract.Code}.pdf",
+            "%PDF-autentique-signed"u8.ToArray()));
+
+        var documents = new FakeContractDocumentGenerator();
+        var handler = new PreviewContractQueryHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            repository,
+            new FakeTenantContext(),
+            documents,
+            new FakeAutentiqueClient());
+
+        var file = await handler.Handle(new PreviewContractQuery(contract.Id), CancellationToken.None);
+
+        Assert.Equal("%PDF-autentique-signed", System.Text.Encoding.ASCII.GetString(file.Content));
+        Assert.Empty(documents.PdfModels);
     }
 
     [Fact]
@@ -139,7 +268,8 @@ public class ContractQueryTests
             new FakeCurrentUser { IsPlatformAdmin = true },
             repository,
             new FakeTenantContext(),
-            new FakeContractDocumentGenerator());
+            new FakeContractDocumentGenerator(),
+            new FakeAutentiqueClient());
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             handler.Handle(new PreviewContractQuery(contract.Id), CancellationToken.None));

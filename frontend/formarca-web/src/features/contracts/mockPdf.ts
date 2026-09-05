@@ -56,7 +56,9 @@ function renderPlainPdf(lines: string[]): Blob {
 
 export function buildContractPdf(contract: Contract): Blob {
   const classes = parseClasses(contract.classes).join(', ')
-  const signed = Boolean(contract.clientSignaturePng || contract.clientSignedAt)
+  const clientSigned = Boolean(contract.clientSignaturePng || contract.clientSignedAt)
+  const formarcaSigned =
+    contract.status === 'Issued' || contract.status === 'Signed'
   return renderPlainPdf([
     `Contrato ${contract.code}`,
     `Status: ${contract.status}`,
@@ -70,7 +72,13 @@ export function buildContractPdf(contract: Contract): Blob {
     '',
     ...(contract.bodyMarkdown ?? '').split('\n'),
     '',
-    signed
+    formarcaSigned
+      ? 'Assinatura da contratada (FOR MARCA LTDA): registrada'
+      : 'Assinatura da contratada (FOR MARCA LTDA): pendente',
+    formarcaSigned && contract.formarcaSignedAt
+      ? `Assinado eletronicamente em: ${contract.formarcaSignedAt}`
+      : '',
+    clientSigned
       ? 'Assinatura do contratante: registrada'
       : 'Assinatura do contratante: pendente',
     contract.clientSignedAt ? `Assinado em: ${contract.clientSignedAt}` : '',
