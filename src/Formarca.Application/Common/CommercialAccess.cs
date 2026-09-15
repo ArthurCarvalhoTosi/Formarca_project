@@ -39,4 +39,19 @@ internal static class CommercialAccess
 
         return currentUser.TenantId.Value;
     }
+
+    public static void EnsureRequestedTenantsAllowed(
+        ICurrentUser currentUser,
+        IReadOnlyList<Guid>? requestedTenantIds)
+    {
+        if (requestedTenantIds is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var tenantId in requestedTenantIds)
+        {
+            ResolveTenantId(currentUser, tenantId, requiredForAdmin: false);
+        }
+    }
 }

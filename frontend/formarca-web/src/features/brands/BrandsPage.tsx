@@ -1,12 +1,21 @@
-import { Alert, App, Button, Input, Select, Space, Spin, Table, Typography } from 'antd'
+import { App, Button, Form, Input, Select, Table } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { contractsApi } from '@/features/contracts/api'
 import { customersApi } from '@/features/customers/api'
-import { ApiError } from '@/shared/api/types'
+import { asList } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
+import {
+  csvChips,
+  joinCsv,
+  ListEmptyState,
+  ListSearchLayout,
+  splitCsv,
+  toTablePagination,
+  useListSearch,
+} from '@/shared/listSearch'
 import { formatClasses } from '@/shared/money'
 import {
   TableViewToolbar,
@@ -17,32 +26,39 @@ import { brandsApi } from './api'
 import { preIssueErrorMessage } from './preIssueError'
 import { NICE_CLASSES, type Brand } from './types'
 
+const DEFAULT_FILTERS = {
+  name: '',
+  inpiClass: '',
+  tenantId: '',
+}
+
 export function BrandsPage() {
   const { t } = useI18n()
   const { message } = App.useApp()
   const navigate = useNavigate()
-  const { isPlatformAdmin, activeTenantId } = useAuth()
+  const { isPlatformAdmin, hasPermission } = useAuth()
   const queryClient = useQueryClient()
-  const [name, setName] = useState('')
-  const [inpiClass, setInpiClass] = useState<number | undefined>()
-  const [tenantId, setTenantId] = useState<string | undefined>(
-    isPlatformAdmin ? undefined : activeTenantId ?? undefined,
-  )
+  const search = useListSearch(DEFAULT_FILTERS)
+  const canCreate = hasPermission('brands.manage')
+  const canPreIssue = hasPermission('contracts.manage')
 
   const filters = {
-    name: name.trim() || undefined,
-    inpiClass,
-    tenantId: isPlatformAdmin ? tenantId : undefined,
+    name: search.applied.name.trim() || undefined,
+    inpiClass: search.applied.inpiClass || undefined,
+    tenantId: isPlatformAdmin ? search.applied.tenantId || undefined : undefined,
+    page: search.page,
+    pageSize: search.pageSize,
   }
 
   const query = useQuery({
     queryKey: ['brands', filters],
     queryFn: () => brandsApi.list(filters),
+    enabled: search.hasSearched,
   })
 
   const tenantsQuery = useQuery({
-    queryKey: ['customers', isPlatformAdmin],
-    queryFn: () => customersApi.list(isPlatformAdmin),
+    queryKey: ['customers', 'options', isPlatformAdmin],
+    queryFn: async () => asList(await customersApi.list(isPlatformAdmin, { pageSize: 100 })),
     enabled: isPlatformAdmin,
   })
 
@@ -58,10 +74,8 @@ export function BrandsPage() {
     },
   })
 
-  const data = query.data ?? []
   const tenantOptions = useMemo(
-    () =>
-      (tenantsQuery.data ?? []).map((row) => ({ value: row.id, label: row.name })),
+    () => (tenantsQuery.data ?? []).map((row) => ({ value: row.id, label: row.name })),
     [tenantsQuery.data],
   )
 
@@ -92,110 +106,122 @@ export function BrandsPage() {
         title: t('common.actions'),
         hideable: false,
         adminOnly: true,
-        render: (_: unknown, row: Brand) => (
-          <Button
-            size="small"
-            onClick={(event) => {
-              event.stopPropagation()
-              preIssueMutation.mutate(row.id)
-            }}
-            loading={preIssueMutation.isPending}
-          >
-            {t('brands.preIssue')}
-          </Button>
-        ),
+        render: (_: unknown, row: Brand) =>
+          canPreIssue ? (
+            <Button
+              size="small"
+              onClick={(event) => {
+                event.stopPropagation()
+                preIssueMutation.mutate(row.id)
+              }}
+              loading={preIssueMutation.isPending}
+            >
+              {t('brands.preIssue')}
+            </Button>
+          ) : null,
       },
     ],
-    [preIssueMutation, t],
+    [canPreIssue, preIssueMutation, t],
   )
 
   const tableViews = useTableViews({ tableKey: 'brands', columns })
 
-  if (query.isLoading) {
-    return <Spin tip={t('brands.loading')} />
-  }
-
-  if (query.isError) {
-    const description =
-      query.error instanceof ApiError ? query.error.message : t('brands.loadError')
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        message={t('brands.unavailable')}
-        description={description}
-      />
-    )
-  }
-
   return (
-    <div>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
-        {t('brands.title')}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        {t('brands.description')}
-      </Typography.Paragraph>
-
-      <div
-        style={{
-          display: 'flex',
-          gap: 16,
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Space wrap>
-          <Input.Search
-            allowClear
-            placeholder={t('brands.searchPlaceholder')}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onSearch={setName}
-            style={{ width: 260 }}
-          />
-          <Select
-            allowClear
-            placeholder={t('brands.filterClass')}
-            value={inpiClass}
-            onChange={setInpiClass}
-            style={{ width: 140 }}
-            options={NICE_CLASSES.map((n) => ({ value: n, label: String(n) }))}
-          />
-          {isPlatformAdmin ? (
-            <Select
+    <ListSearchLayout
+      title={t('brands.title')}
+      description={t('brands.description')}
+      search={search}
+      extra={
+        canCreate ? (
+          <Button type="primary" onClick={() => navigate('/marcas/novo')}>
+            {t('brands.new')}
+          </Button>
+        ) : null
+      }
+      views={<TableViewToolbar controller={tableViews} />}
+      loading={query.isLoading}
+      error={query.error}
+      errorTitle={t('brands.unavailable')}
+      errorFallback={t('brands.loadError')}
+      chips={[
+        search.applied.name
+          ? { key: 'name', label: `${t('brands.fields.name')}: ${search.applied.name}` }
+          : null,
+        ...csvChips(
+          search.applied.inpiClass,
+          'inpiClass',
+          t('brands.filterClass'),
+          (value) => value,
+          (value) => search.removeCsvValue('inpiClass', value),
+        ),
+        ...csvChips(
+          search.applied.tenantId,
+          'tenantId',
+          t('brands.filterTenant'),
+          (value) => tenantOptions.find((row) => row.value === value)?.label ?? value,
+          (value) => search.removeCsvValue('tenantId', value),
+        ),
+      ].filter(Boolean) as { key: string; label: string }[]}
+      filters={
+        <>
+          <Form.Item label={t('brands.fields.name')}>
+            <Input
               allowClear
-              placeholder={t('brands.filterTenant')}
-              value={tenantId}
-              onChange={setTenantId}
-              style={{ minWidth: 200 }}
-              options={tenantOptions}
-              showSearch
-              optionFilterProp="label"
+              placeholder={t('brands.searchPlaceholder')}
+              value={search.draft.name}
+              onChange={(event) => search.setDraftValue('name', event.target.value)}
             />
-          ) : null}
+          </Form.Item>
+          <Form.Item label={t('brands.filterClass')}>
+            <Select
+              mode="multiple"
+              allowClear
+              maxTagCount="responsive"
+              placeholder={t('brands.filterClass')}
+              value={splitCsv(search.draft.inpiClass)}
+              onChange={(value) => search.setDraftValue('inpiClass', joinCsv(value))}
+              options={NICE_CLASSES.map((n) => ({ value: String(n), label: String(n) }))}
+            />
+          </Form.Item>
           {isPlatformAdmin ? (
-            <Button type="primary" onClick={() => navigate('/marcas/novo')}>
-              {t('brands.new')}
-            </Button>
+            <Form.Item label={t('brands.filterTenant')}>
+              <Select
+                mode="multiple"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                maxTagCount="responsive"
+                placeholder={t('brands.filterTenant')}
+                value={splitCsv(search.draft.tenantId)}
+                onChange={(value) => search.setDraftValue('tenantId', joinCsv(value))}
+                options={tenantOptions}
+              />
+            </Form.Item>
           ) : null}
-        </Space>
-        <TableViewToolbar controller={tableViews} />
+        </>
+      }
+    >
+      <div className="list-surface">
+        <Table<Brand>
+          rowKey="id"
+          dataSource={query.data?.items ?? []}
+          locale={{ emptyText: <ListEmptyState searched /> }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/marcas/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
+          columns={tableViews.visibleColumns}
+          pagination={toTablePagination(
+            {
+              total: query.data?.total ?? 0,
+              page: query.data?.page ?? search.page,
+              pageSize: query.data?.pageSize ?? search.pageSize,
+            },
+            search.setPage,
+          )}
+          sticky
+        />
       </div>
-
-      <Table<Brand>
-        rowKey="id"
-        dataSource={data}
-        locale={{ emptyText: t('brands.empty') }}
-        onRow={(record) => ({
-          onClick: () => navigate(`/marcas/${record.id}`),
-          style: { cursor: 'pointer' },
-        })}
-        columns={tableViews.visibleColumns}
-        pagination={{ pageSize: 10 }}
-      />
-    </div>
+    </ListSearchLayout>
   )
 }

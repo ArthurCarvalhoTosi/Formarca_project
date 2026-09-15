@@ -36,6 +36,8 @@ export const MOCK_CLIENT_USER: AuthUser = {
     'contracts.sign',
     'invoices.read',
     'invoices.pay',
+    'brands.read',
+    'processes.read',
   ],
 }
 

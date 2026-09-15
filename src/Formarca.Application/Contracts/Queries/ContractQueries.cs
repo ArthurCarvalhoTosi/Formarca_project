@@ -13,7 +13,7 @@ namespace Formarca.Application.Contracts.Queries;
 public sealed record ListContractsQuery(
     Guid? TenantId,
     Guid? BrandId,
-    ContractStatus? Status,
+    IReadOnlyList<ContractStatus>? Statuses,
     string? Code,
     string? Search,
     string? ClientName,
@@ -54,9 +54,10 @@ public sealed class ListContractsQueryHandler(
             query = query.Where(c => c.BrandId == request.BrandId);
         }
 
-        if (request.Status is not null)
+        if (request.Statuses is { Count: > 0 })
         {
-            query = query.Where(c => c.Status == request.Status);
+            var statuses = request.Statuses.ToList();
+            query = query.Where(c => statuses.Contains(c.Status));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Code))

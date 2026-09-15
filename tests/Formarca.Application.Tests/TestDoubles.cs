@@ -6,6 +6,11 @@ using Microsoft.EntityFrameworkCore.Query;
 
 namespace Formarca.Application.Tests;
 
+internal sealed class FakeClock(DateTime utcNow) : IClock
+{
+    public DateTime UtcNow { get; set; } = utcNow;
+}
+
 internal sealed class FakeCurrentUser : ICurrentUser
 {
     public Guid? UserId { get; init; } = Guid.NewGuid();

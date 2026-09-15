@@ -1,3 +1,4 @@
+using Formarca.Application.Common;
 using Formarca.Application.Common.Models;
 using Formarca.Application.Contracts.Commands;
 using Formarca.Application.Contracts.Queries;
@@ -46,7 +47,7 @@ public sealed class ContractsController(ISender sender) : ControllerBase
     public async Task<IActionResult> List(
         [FromQuery] Guid? tenantId,
         [FromQuery] Guid? brandId,
-        [FromQuery] ContractStatus? status,
+        [FromQuery] string[]? status,
         [FromQuery] string? code,
         [FromQuery] string? search,
         [FromQuery] string? clientName,
@@ -61,7 +62,7 @@ public sealed class ContractsController(ISender sender) : ControllerBase
             new ListContractsQuery(
                 tenantId,
                 brandId,
-                status,
+                QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<ContractStatus>(status)),
                 code,
                 search,
                 clientName,

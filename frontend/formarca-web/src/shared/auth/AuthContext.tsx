@@ -12,6 +12,7 @@ import { setUnauthorizedHandler } from '@/shared/api/client'
 import { env } from '@/shared/config/env'
 import { getMockSessionByToken, mockLogin } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
+import { hasPermission as userHasPermission } from '@/shared/auth/permissions'
 import type {
   AuthUser,
   LoginRequest,
@@ -28,6 +29,7 @@ type AuthContextValue = {
   activeTenant: TenantSummary | null
   isPlatformAdmin: boolean
   isOnboardingLimited: boolean
+  hasPermission: (code: string, options?: { bypassAdmin?: boolean }) => boolean
   login: (payload: LoginRequest) => Promise<void>
   logout: () => Promise<void>
   switchTenant: (tenantId: string) => Promise<void>
@@ -190,6 +192,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const activeTenant = tenants.find((tenant) => tenant.id === activeTenantId) ?? null
   const isOnboardingLimited =
     activeTenant?.status === 'Onboarding' && !isPlatformAdmin
+  const hasPermission = useCallback(
+    (code: string, options?: { bypassAdmin?: boolean }) =>
+      userHasPermission(user, code, { isPlatformAdmin, bypassAdmin: options?.bypassAdmin }),
+    [isPlatformAdmin, user],
+  )
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -200,6 +207,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       activeTenant,
       isPlatformAdmin,
       isOnboardingLimited,
+      hasPermission,
       login,
       logout,
       switchTenant,
@@ -213,6 +221,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       activeTenant,
       isPlatformAdmin,
       isOnboardingLimited,
+      hasPermission,
       login,
       logout,
       switchTenant,

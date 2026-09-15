@@ -1,6 +1,7 @@
 import { MOCK_ACCESS_TOKEN, MOCK_TENANTS } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
-import { ApiError } from '@/shared/api/types'
+import { ApiError, paginate } from '@/shared/api/types'
+import { splitCsv } from '@/shared/listSearch'
 import type { Brand, BrandListFilters, BrandPayload } from '@/features/brands/types'
 import {
   PRE_ISSUE_COMPANY_DOCUMENT_REQUIRED,
@@ -18,12 +19,20 @@ import { DEFAULT_MINIMUM_TERM, DEFAULT_TEMPLATE_KEY } from '@/features/contracts
 import type {
   ApproveInvoiceRequest,
   Invoice,
+  InvoiceListFilters,
   InvoiceSettings,
   SubmitPaymentRequest,
 } from '@/features/invoices/types'
 import { calculateExpectedAmount } from '@/features/invoices/calc'
 import { defaultInterestRates } from '@/features/invoices/interestRates'
-import type { ProcessRecord } from '@/features/processes/types'
+import type {
+  FunnelStage,
+  ProcessDashboardFilters,
+  ProcessDashboardItem,
+  ProcessDashboardResult,
+  ProcessListFilters,
+  ProcessRecord,
+} from '@/features/processes/types'
 import {
   mockActivateTenant,
   mockGetTenantRecord,
@@ -362,20 +371,110 @@ function assertContractScope(contract: Contract): void {
   }
 }
 
+function contractRank(contract: Contract): number {
+  if (processes.some((item) => item.contractId === contract.id)) return 5
+  const invoice = invoices.find((item) => item.contractId === contract.id)
+  if (invoice?.status === 'Paid') return 4
+  if (invoice) return 3
+  if (contract.status === 'Signed') return 2
+  if (contract.status === 'Issued') return 1
+  return 0
+}
+
+function pickBrandContract(brandId: string): Contract | null {
+  const related = contracts.filter((contract) => contract.brandId === brandId)
+  if (related.length === 0) return null
+  return [...related].sort((left, right) => {
+    const rank = contractRank(right) - contractRank(left)
+    if (rank !== 0) return rank
+    return (right.generatedAtUtc ?? '').localeCompare(left.generatedAtUtc ?? '')
+  })[0]
+}
+
+function funnelStageFor(item: {
+  contract: Contract | null
+  invoice: Invoice | null
+  process: ProcessRecord | null
+}): FunnelStage {
+  if (item.process) return 'Process'
+  if (item.invoice && item.invoice.status !== 'Paid') return 'Invoice'
+  if (item.contract) return 'Contract'
+  return 'Brand'
+}
+
+function dashboardKpis(items: ProcessDashboardItem[]) {
+  return {
+    brands: items.length,
+    contractsInProgress: items.filter(
+      (item) =>
+        Boolean(item.contract) &&
+        !item.process &&
+        item.invoice?.status !== 'Paid',
+    ).length,
+    invoicesPending: items.filter(
+      (item) =>
+        item.invoice?.status === 'PendingPayment' ||
+        item.invoice?.status === 'AwaitingApproval',
+    ).length,
+    processesGenerated: items.filter((item) => Boolean(item.process)).length,
+  }
+}
+
+function toDashboardItem(brand: Brand): ProcessDashboardItem {
+  const contract = pickBrandContract(brand.id)
+  const invoice = contract
+    ? invoices.find((item) => item.contractId === contract.id) ?? null
+    : null
+  const process =
+    processes.find((item) =>
+      contract ? item.contractId === contract.id : item.brandId === brand.id,
+    ) ?? null
+  return {
+    brandId: brand.id,
+    brandName: brand.name,
+    tenantId: brand.tenantId,
+    tenantName: brand.tenantName ?? null,
+    contract: contract
+      ? { id: contract.id, code: contract.code, status: contract.status }
+      : null,
+    invoice: invoice
+      ? {
+          id: invoice.id,
+          status: invoice.status,
+          expectedAmount: invoice.expectedAmount,
+        }
+      : null,
+    process: process
+      ? {
+          id: process.id,
+          status: process.status,
+          processNumber: process.processNumber ?? null,
+        }
+      : null,
+    funnelStage: funnelStageFor({ contract, invoice, process }),
+  }
+}
+
 export const mockFunnel = {
   listBrands(filters: BrandListFilters = {}): Brand[] {
-    const tenantId = filters.tenantId || scopedTenantId()
+    const tenantIds = splitCsv(filters.tenantId)
+    const scoped = scopedTenantId()
+    const classes = splitCsv(String(filters.inpiClass ?? '')).map(Number).filter((n) => !Number.isNaN(n))
     return brands
-      .filter((brand) => (tenantId ? brand.tenantId === tenantId : true))
+      .filter((brand) =>
+        tenantIds.length > 0
+          ? tenantIds.includes(brand.tenantId)
+          : scoped
+            ? brand.tenantId === scoped
+            : true,
+      )
       .filter((brand) =>
         filters.name
           ? brand.name.toLowerCase().includes(filters.name.trim().toLowerCase())
           : true,
       )
       .filter((brand) =>
-        filters.inpiClass
-          ? brand.inpiClasses.includes(Number(filters.inpiClass))
-          : true,
+        classes.length > 0 ? classes.some((n) => brand.inpiClasses.includes(n)) : true,
       )
       .map(clone)
   },
@@ -459,7 +558,10 @@ export const mockFunnel = {
           contract.representativeDocument.includes(digits)
         )
       })
-      .filter((contract) => (filters.status ? contract.status === filters.status : true))
+      .filter((contract) => {
+        const statuses = splitCsv(filters.status)
+        return statuses.length === 0 || statuses.includes(contract.status)
+      })
       .filter((contract) => {
         if (!from && !to) return true
         if (!contract.generatedAtUtc) return false
@@ -646,10 +748,22 @@ export const mockFunnel = {
     }
   },
 
-  listInvoices(): Invoice[] {
-    const tenantId = scopedTenantId()
+  listInvoices(filters: InvoiceListFilters = {}): Invoice[] {
+    const tenantIds = splitCsv(filters.tenantId)
+    const scoped = scopedTenantId()
+    const statuses = splitCsv(filters.status)
     return invoices
-      .filter((invoice) => (tenantId ? invoice.tenantId === tenantId : true))
+      .filter((invoice) =>
+        tenantIds.length > 0
+          ? tenantIds.includes(invoice.tenantId)
+          : scoped
+            ? invoice.tenantId === scoped
+            : true,
+      )
+      .filter((invoice) => statuses.length === 0 || statuses.includes(invoice.status))
+      .filter((invoice) =>
+        filters.contractId ? invoice.contractId === filters.contractId : true,
+      )
       .map(clone)
   },
 
@@ -740,10 +854,41 @@ export const mockFunnel = {
     return clone(invoiceSettings)
   },
 
-  listProcesses(): ProcessRecord[] {
-    const tenantId = scopedTenantId()
+  listProcesses(filters: ProcessListFilters = {}): ProcessRecord[] {
+    const tenantIds = splitCsv(filters.tenantId)
+    const brandIds = splitCsv(filters.brandId)
+    const scoped = scopedTenantId()
     return processes
-      .filter((item) => (tenantId ? item.tenantId === tenantId : true))
+      .filter((item) =>
+        tenantIds.length > 0
+          ? tenantIds.includes(item.tenantId)
+          : scoped
+            ? item.tenantId === scoped
+            : true,
+      )
+      .filter((item) => (brandIds.length > 0 ? brandIds.includes(item.brandId) : true))
       .map(clone)
+  },
+
+  listDashboard(filters: ProcessDashboardFilters = {}): ProcessDashboardResult {
+    const tenantIds = splitCsv(filters.tenantId)
+    const brandIds = splitCsv(filters.brandId)
+    const stages = splitCsv(filters.funnelStage)
+    const scoped = scopedTenantId()
+    const cards = brands
+      .filter((brand) =>
+        tenantIds.length > 0
+          ? tenantIds.includes(brand.tenantId)
+          : scoped
+            ? brand.tenantId === scoped
+            : true,
+      )
+      .filter((brand) => (brandIds.length > 0 ? brandIds.includes(brand.id) : true))
+      .map(toDashboardItem)
+    const items = cards.filter((item) =>
+      stages.length > 0 ? stages.includes(item.funnelStage) : true,
+    )
+    const paged = paginate(items, filters.page, filters.pageSize)
+    return { ...paged, kpis: dashboardKpis(cards) }
   },
 }

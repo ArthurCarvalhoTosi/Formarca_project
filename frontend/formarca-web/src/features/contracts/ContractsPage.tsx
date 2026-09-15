@@ -1,11 +1,19 @@
-import { Alert, DatePicker, Input, Select, Space, Spin, Table, Tag, Typography } from 'antd'
+import { DatePicker, Form, Input, Select, Table, Tag } from 'antd'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Dayjs } from 'dayjs'
-import { ApiError } from '@/shared/api/types'
+import dayjs from 'dayjs'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
+import {
+  csvChips,
+  joinCsv,
+  ListEmptyState,
+  ListSearchLayout,
+  splitCsv,
+  toTablePagination,
+  useListSearch,
+} from '@/shared/listSearch'
 import { formatClasses, formatDate, formatMoney } from '@/shared/money'
 import {
   TableViewToolbar,
@@ -16,6 +24,16 @@ import { contractsApi } from './api'
 import type { Contract, ContractStatus } from './types'
 
 const STATUS_OPTIONS: ContractStatus[] = ['PreIssued', 'Issued', 'Signed', 'Cancelled']
+
+const DEFAULT_FILTERS = {
+  clientName: '',
+  code: '',
+  brandName: '',
+  document: '',
+  status: '',
+  from: '',
+  to: '',
+}
 
 function statusColor(status?: string) {
   switch (status) {
@@ -36,29 +54,25 @@ export function ContractsPage() {
   const { t, locale, dict } = useI18n()
   const navigate = useNavigate()
   const { isPlatformAdmin } = useAuth()
-  const [clientName, setClientName] = useState('')
-  const [code, setCode] = useState('')
-  const [brandName, setBrandName] = useState('')
-  const [document, setDocument] = useState('')
-  const [status, setStatus] = useState<string | undefined>()
-  const [dates, setDates] = useState<[Dayjs | null, Dayjs | null] | null>(null)
+  const search = useListSearch(DEFAULT_FILTERS)
 
   const filters = {
-    clientName: clientName.trim() || undefined,
-    code: code.trim() || undefined,
-    brandName: brandName.trim() || undefined,
-    document: document.trim() || undefined,
-    status,
-    from: dates?.[0]?.startOf('day').toISOString(),
-    to: dates?.[1]?.endOf('day').toISOString(),
+    clientName: search.applied.clientName.trim() || undefined,
+    code: search.applied.code.trim() || undefined,
+    brandName: search.applied.brandName.trim() || undefined,
+    document: search.applied.document.trim() || undefined,
+    status: search.applied.status || undefined,
+    from: search.applied.from || undefined,
+    to: search.applied.to || undefined,
+    page: search.page,
+    pageSize: search.pageSize,
   }
 
   const query = useQuery({
     queryKey: ['contracts', filters],
     queryFn: () => contractsApi.list(filters),
+    enabled: search.hasSearched,
   })
-
-  const data = query.data ?? []
 
   const statusLabel = useMemo(
     () => (value: string | undefined) => {
@@ -157,107 +171,134 @@ export function ContractsPage() {
 
   const tableViews = useTableViews({ tableKey: 'contracts', columns })
 
-  if (query.isLoading) {
-    return <Spin tip={t('contracts.loading')} />
-  }
-
-  if (query.isError) {
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        message={t('contracts.unavailable')}
-        description={
-          query.error instanceof ApiError
-            ? query.error.message
-            : t('contracts.loadError')
-        }
-      />
-    )
-  }
-
   return (
-    <div>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
-        {t('contracts.pageTitle')}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        {t('contracts.description')}
-      </Typography.Paragraph>
-
-      <div
-        style={{
-          display: 'flex',
-          gap: 16,
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Space wrap>
+    <ListSearchLayout
+      title={t('contracts.pageTitle')}
+      description={t('contracts.description')}
+      search={search}
+      views={<TableViewToolbar controller={tableViews} />}
+      loading={query.isLoading}
+      error={query.error}
+      errorTitle={t('contracts.unavailable')}
+      errorFallback={t('contracts.loadError')}
+      chips={[
+        search.applied.clientName
+          ? { key: 'clientName', label: `${t('contracts.filters.clientName')}: ${search.applied.clientName}` }
+          : null,
+        search.applied.code
+          ? { key: 'code', label: `${t('contracts.filters.code')}: ${search.applied.code}` }
+          : null,
+        search.applied.brandName
+          ? { key: 'brandName', label: `${t('contracts.filters.brandName')}: ${search.applied.brandName}` }
+          : null,
+        search.applied.document
+          ? { key: 'document', label: `${t('contracts.filters.document')}: ${search.applied.document}` }
+          : null,
+        ...csvChips(
+          search.applied.status,
+          'status',
+          t('contracts.filters.status'),
+          (value) => statusLabel(value),
+          (value) => search.removeCsvValue('status', value),
+        ),
+        search.applied.from || search.applied.to
+          ? {
+              key: 'from',
+              label: `${t('contracts.filters.dates')}: ${formatDate(search.applied.from, locale)} – ${formatDate(search.applied.to, locale)}`,
+              onClose: () => search.removeFilters(['from', 'to']),
+            }
+          : null,
+      ].filter(Boolean) as { key: string; label: string }[]}
+      filters={
+        <>
           {isPlatformAdmin ? (
+            <Form.Item label={t('contracts.filters.clientName')}>
+              <Input
+                allowClear
+                placeholder={t('contracts.filters.clientName')}
+                value={search.draft.clientName}
+                onChange={(event) => search.setDraftValue('clientName', event.target.value)}
+              />
+            </Form.Item>
+          ) : null}
+          <Form.Item label={t('contracts.filters.code')}>
             <Input
               allowClear
-              placeholder={t('contracts.filters.clientName')}
-              value={clientName}
-              onChange={(event) => setClientName(event.target.value)}
-              style={{ width: 200 }}
+              placeholder={t('contracts.filters.code')}
+              value={search.draft.code}
+              onChange={(event) => search.setDraftValue('code', event.target.value)}
             />
-          ) : null}
-          <Input
-            allowClear
-            placeholder={t('contracts.filters.code')}
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            style={{ width: 180 }}
-          />
-          <Input
-            allowClear
-            placeholder={t('contracts.filters.brandName')}
-            value={brandName}
-            onChange={(event) => setBrandName(event.target.value)}
-            style={{ width: 180 }}
-          />
-          <Input
-            allowClear
-            placeholder={t('contracts.filters.document')}
-            value={document}
-            onChange={(event) => setDocument(event.target.value)}
-            style={{ width: 180 }}
-          />
-          <Select
-            allowClear
-            placeholder={t('contracts.filters.status')}
-            value={status}
-            onChange={setStatus}
-            style={{ width: 160 }}
-            options={STATUS_OPTIONS.map((value) => ({
-              value,
-              label: statusLabel(value),
-            }))}
-          />
-          <DatePicker.RangePicker
-            value={dates}
-            onChange={(value) => setDates(value)}
-            placeholder={[t('contracts.filters.dates'), t('contracts.filters.dates')]}
-          />
-        </Space>
-        <TableViewToolbar controller={tableViews} />
+          </Form.Item>
+          <Form.Item label={t('contracts.filters.brandName')}>
+            <Input
+              allowClear
+              placeholder={t('contracts.filters.brandName')}
+              value={search.draft.brandName}
+              onChange={(event) => search.setDraftValue('brandName', event.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label={t('contracts.filters.document')}>
+            <Input
+              allowClear
+              placeholder={t('contracts.filters.document')}
+              value={search.draft.document}
+              onChange={(event) => search.setDraftValue('document', event.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label={t('contracts.filters.status')}>
+            <Select
+              mode="multiple"
+              allowClear
+              maxTagCount="responsive"
+              placeholder={t('contracts.filters.status')}
+              value={splitCsv(search.draft.status)}
+              onChange={(value) => search.setDraftValue('status', joinCsv(value))}
+              options={STATUS_OPTIONS.map((value) => ({
+                value,
+                label: statusLabel(value),
+              }))}
+            />
+          </Form.Item>
+          <Form.Item label={t('contracts.filters.dates')}>
+            <DatePicker.RangePicker
+              value={
+                search.draft.from && search.draft.to
+                  ? [dayjs(search.draft.from), dayjs(search.draft.to)]
+                  : null
+              }
+              onChange={(value) => {
+                search.updateDraft({
+                  from: value?.[0]?.startOf('day').toISOString() ?? '',
+                  to: value?.[1]?.endOf('day').toISOString() ?? '',
+                })
+              }}
+            />
+          </Form.Item>
+        </>
+      }
+    >
+      <div className="list-surface">
+        <Table<Contract>
+          rowKey="id"
+          dataSource={query.data?.items ?? []}
+          scroll={{ x: 1400 }}
+          locale={{ emptyText: <ListEmptyState searched /> }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/contratos/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
+          columns={tableViews.visibleColumns}
+          pagination={toTablePagination(
+            {
+              total: query.data?.total ?? 0,
+              page: query.data?.page ?? search.page,
+              pageSize: query.data?.pageSize ?? search.pageSize,
+            },
+            search.setPage,
+          )}
+          sticky
+        />
       </div>
-
-      <Table<Contract>
-        rowKey="id"
-        dataSource={data}
-        scroll={{ x: 1400 }}
-        locale={{ emptyText: t('contracts.emptyDescription') }}
-        onRow={(record) => ({
-          onClick: () => navigate(`/contratos/${record.id}`),
-          style: { cursor: 'pointer' },
-        })}
-        columns={tableViews.visibleColumns}
-        pagination={{ pageSize: 10 }}
-      />
-    </div>
+    </ListSearchLayout>
   )
 }

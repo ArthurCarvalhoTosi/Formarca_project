@@ -58,6 +58,8 @@ export type Dictionary = {
     delete: string
     view: string
     confirmDelete: string
+    clear: string
+    close: string
   }
   validation: {
     required: string
@@ -84,6 +86,8 @@ export type Dictionary = {
     invoices: string
     information: string
     admin: string
+    collapseMenu: string
+    expandMenu: string
   }
   auth: {
     title: string
@@ -102,6 +106,8 @@ export type Dictionary = {
     back: string
     registerLink: string
     registerPrompt: string
+    forbiddenTitle: string
+    forbiddenSubtitle: string
   }
   session: {
     loading: string
@@ -151,6 +157,9 @@ export type Dictionary = {
     groupsLoadError: string
     groupsEmpty: string
     groupsLoading: string
+    searchPlaceholder: string
+    filterStatus: string
+    filterEmail: string
     colName: string
     colSlug: string
     colDocument: string
@@ -270,6 +279,10 @@ export type Dictionary = {
     colEmail: string
     colStatus: string
     mockHint: string
+    filterName: string
+    filterDocument: string
+    filterEmail: string
+    filterStatus: string
   }
   brands: {
     title: string
@@ -431,6 +444,9 @@ export type Dictionary = {
     rejectConfirmTitle: string
     rejectConfirmContent: string
     noInvoice: string
+    filterStatus: string
+    filterTenant: string
+    filterContract: string
     status: {
       PendingPayment: string
       AwaitingApproval: string
@@ -441,20 +457,61 @@ export type Dictionary = {
   processes: {
     title: string
     description: string
+    dashboardDescription: string
     empty: string
     loading: string
     loadError: string
+    unavailable: string
     colBrand: string
     colStatus: string
     colNumber: string
     colContract: string
+    colTenant: string
     statusGenerated: string
+    viewCards: string
+    viewTable: string
+    kpiBrands: string
+    kpiContracts: string
+    kpiInvoices: string
+    kpiProcesses: string
+    funnelBrand: string
+    funnelContract: string
+    funnelInvoice: string
+    funnelProcess: string
+    waitingContract: string
+    waitingInvoice: string
+    waitingPayment: string
+    waitingSignature: string
+    processGenerated: string
+    filterBrand: string
+    filterStage: string
+    filterTenant: string
+    stageBrand: string
+    stageContract: string
+    stageInvoice: string
+    stageProcess: string
+  }
+  listSearch: {
+    title: string
+    apply: string
+    clear: string
+    collapse: string
+    openFilters: string
+    emptyTitle: string
+    emptyDescription: string
+    emptyHint: string
+    noResultsTitle: string
+    noResultsDescription: string
   }
   tableViews: {
     default: string
+    title: string
     selectView: string
     columns: string
+    visibleColumns: string
+    editView: string
     saveAs: string
+    saveAsHint: string
     rename: string
     nameLabel: string
     namePlaceholder: string

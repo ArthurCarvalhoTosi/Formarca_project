@@ -1,5 +1,6 @@
 using Formarca.Application.Brands.Commands;
 using Formarca.Application.Brands.Queries;
+using Formarca.Application.Common;
 using Formarca.Application.Common.Models;
 using Formarca.Domain.IdentityAccess;
 using MediatR;
@@ -28,12 +29,29 @@ public sealed class BrandsController(ISender sender) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List(
         [FromQuery] Guid? tenantId,
+        [FromQuery] string[]? tenantIds,
         [FromQuery] string? name,
-        [FromQuery] int? inpiClass,
+        [FromQuery] string[]? inpiClass,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
-        => Ok(await sender.Send(new ListBrandsQuery(tenantId, name, inpiClass, page, pageSize), cancellationToken));
+    {
+        var tenants = QueryFilterValues.ParseGuids(tenantIds).ToList();
+        if (tenantId is Guid id && id != Guid.Empty && !tenants.Contains(id))
+        {
+            tenants.Add(id);
+        }
+
+        return Ok(await sender.Send(
+            new ListBrandsQuery(
+                tenantId,
+                QueryFilterValues.NullIfEmpty(tenants),
+                name,
+                QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseInts(inpiClass)),
+                page,
+                pageSize),
+            cancellationToken));
+    }
 
     [Authorize(Policy = PermissionCodes.BrandsRead)]
     [HttpGet("{id:guid}")]

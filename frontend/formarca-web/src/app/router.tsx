@@ -7,6 +7,7 @@ import { UsersPage } from '@/features/admin/UsersPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { RequireFullAccess } from '@/features/auth/RequireFullAccess'
+import { RequirePermission } from '@/features/auth/RequirePermission'
 import { RequirePlatformAdmin } from '@/features/auth/RequirePlatformAdmin'
 import { BrandFormPage } from '@/features/brands/BrandFormPage'
 import { BrandsPage } from '@/features/brands/BrandsPage'
@@ -43,7 +44,9 @@ function AppRoutes() {
             <Route path="processos" element={<ProcessesPage />} />
             <Route path="processes" element={<Navigate to="/processos" replace />} />
             <Route path="marcas" element={<BrandsPage />} />
-            <Route path="marcas/novo" element={<BrandFormPage />} />
+            <Route element={<RequirePermission permission="brands.manage" />}>
+              <Route path="marcas/novo" element={<BrandFormPage />} />
+            </Route>
             <Route path="marcas/:id" element={<BrandFormPage />} />
             <Route path="brands" element={<Navigate to="/marcas" replace />} />
             <Route path="brands/new" element={<Navigate to="/marcas/novo" replace />} />
@@ -75,7 +78,9 @@ function AppRoutes() {
           <Route path="invoices" element={<Navigate to="/faturas" replace />} />
 
           <Route path="clientes" element={<CustomersPage />} />
-          <Route path="clientes/novo" element={<CustomerFormPage />} />
+          <Route element={<RequirePermission permission="registrations.manage" />}>
+            <Route path="clientes/novo" element={<CustomerFormPage />} />
+          </Route>
           <Route path="clientes/:id" element={<CustomerFormPage />} />
           <Route path="cadastro" element={<Navigate to="/clientes" replace />} />
           <Route

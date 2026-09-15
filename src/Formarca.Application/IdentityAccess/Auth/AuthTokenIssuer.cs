@@ -101,8 +101,8 @@ public static class AuthTokenIssuer
         PermissionCodes.ProcessesRead,
         PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
         PermissionCodes.BrandsRead,
-        PermissionCodes.ContractsRead,
-        PermissionCodes.InvoicesRead
+        PermissionCodes.ContractsRead, PermissionCodes.ContractsSign,
+        PermissionCodes.InvoicesRead, PermissionCodes.InvoicesPay
     ];
 
     private static readonly string[] ClientUserPermissionCodes =

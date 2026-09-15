@@ -46,6 +46,8 @@ export type ContractListFilters = {
   status?: string
   from?: string
   to?: string
+  page?: number
+  pageSize?: number
 }
 
 export type PreIssueContractRequest = {

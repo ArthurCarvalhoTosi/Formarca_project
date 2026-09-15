@@ -1,6 +1,7 @@
 using Formarca.Application.IdentityAccess.Auth;
 using Formarca.Application.Invoices.Commands;
 using Formarca.Domain.Brands;
+using Formarca.Domain.Common;
 using Formarca.Domain.Contracts;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Domain.Invoices;
@@ -30,7 +31,54 @@ public class InvoiceHandlerTests
         Assert.Equal(fixture.Contract.Id, fixture.Repository.Query<ProcessEntity>().Single().ContractId);
         Assert.Contains(
             fixture.Repository.Query<UserGroupMembership>(),
+            m => m.UserId == fixture.UserId && m.GroupId == fixture.TenantAdminsGroup.Id && !m.IsDeleted);
+        Assert.DoesNotContain(
+            fixture.Repository.Query<UserGroupMembership>(),
             m => m.UserId == fixture.UserId && m.GroupId == fixture.ClientUsersGroup.Id && !m.IsDeleted);
+        Assert.DoesNotContain(
+            fixture.Repository.Query<UserGroupMembership>(),
+            m => m.UserId == fixture.UserId && m.GroupId == fixture.OnboardingGroup.Id && !m.IsDeleted);
+    }
+
+    [Fact]
+    public async Task Promote_Owner_Goes_To_TenantAdmins_Other_Members_Go_To_ClientUsers()
+    {
+        var fixture = await SeedOnboardingInvoiceAsync(extraOnboardingMembers: 1);
+        var extraUserId = fixture.ExtraUserIds[0];
+        var handler = new ApproveInvoiceCommandHandler(
+            new FakeCurrentUser { IsPlatformAdmin = true },
+            fixture.Repository,
+            new FakeTenantContext());
+
+        await handler.Handle(new ApproveInvoiceCommand(fixture.Invoice.Id, 1000m), CancellationToken.None);
+
+        Assert.Contains(
+            fixture.Repository.Query<UserGroupMembership>(),
+            m => m.UserId == fixture.UserId && m.GroupId == fixture.TenantAdminsGroup.Id && !m.IsDeleted);
+        Assert.DoesNotContain(
+            fixture.Repository.Query<UserGroupMembership>(),
+            m => m.UserId == extraUserId && m.GroupId == fixture.TenantAdminsGroup.Id && !m.IsDeleted);
+        Assert.Contains(
+            fixture.Repository.Query<UserGroupMembership>(),
+            m => m.UserId == extraUserId && m.GroupId == fixture.ClientUsersGroup.Id && !m.IsDeleted);
+        Assert.DoesNotContain(
+            fixture.Repository.Query<UserGroupMembership>(),
+            m => !m.IsDeleted && m.GroupId == fixture.OnboardingGroup.Id);
+    }
+
+    [Fact]
+    public async Task Promote_Does_Not_Duplicate_Existing_TenantAdmins_Membership()
+    {
+        var fixture = await SeedOnboardingInvoiceAsync();
+        fixture.Repository.Add(UserGroupMembership.Create(fixture.UserId, fixture.Tenant.Id, fixture.TenantAdminsGroup.Id));
+
+        await FunnelActivation.PromoteOnboardingMembersAsync(
+            fixture.Repository, fixture.Tenant.Id, CancellationToken.None);
+
+        Assert.Equal(
+            1,
+            fixture.Repository.Query<UserGroupMembership>().Count(
+                m => m.UserId == fixture.UserId && m.GroupId == fixture.TenantAdminsGroup.Id && !m.IsDeleted));
         Assert.DoesNotContain(
             fixture.Repository.Query<UserGroupMembership>(),
             m => m.UserId == fixture.UserId && m.GroupId == fixture.OnboardingGroup.Id && !m.IsDeleted);
@@ -104,7 +152,7 @@ public class InvoiceHandlerTests
         Assert.Equal(1, fromJson.PixDiscount);
     }
 
-    private static async Task<Fixture> SeedOnboardingInvoiceAsync()
+    private static async Task<Fixture> SeedOnboardingInvoiceAsync(int extraOnboardingMembers = 0)
     {
         var repository = new InMemoryRepository();
         foreach (var (code, name) in PermissionCodes.Catalog)
@@ -125,10 +173,24 @@ public class InvoiceHandlerTests
         await AuthTokenIssuer.EnsureDefaultTenantGroupsAsync(repository, tenant.Id, CancellationToken.None);
         var onboarding = repository.Query<Group>().Single(g => g.Name == DefaultGroupNames.ClientOnboarding);
         var clientUsers = repository.Query<Group>().Single(g => g.Name == DefaultGroupNames.ClientUsers);
+        var tenantAdmins = repository.Query<Group>().Single(g => g.Name == DefaultGroupNames.TenantAdmins);
+
+        var clock = new FakeClock(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc));
+        using var _ = Clock.Use(clock);
 
         var userId = Guid.NewGuid();
         repository.Add(UserTenantMembership.Create(userId, tenant.Id, isDefault: true));
         repository.Add(UserGroupMembership.Create(userId, tenant.Id, onboarding.Id));
+
+        var extraUserIds = new List<Guid>();
+        for (var i = 0; i < extraOnboardingMembers; i++)
+        {
+            clock.UtcNow = clock.UtcNow.AddMinutes(1);
+            var extraUserId = Guid.NewGuid();
+            extraUserIds.Add(extraUserId);
+            repository.Add(UserTenantMembership.Create(extraUserId, tenant.Id));
+            repository.Add(UserGroupMembership.Create(extraUserId, tenant.Id, onboarding.Id));
+        }
 
         var brand = Brand.Create(tenant.Id, "Acme", "Widgets", [9]);
         repository.Add(brand);
@@ -157,7 +219,8 @@ public class InvoiceHandlerTests
         invoice.SubmitPayment(PaymentMethod.Pix, 1, 1000m);
         repository.Add(invoice);
 
-        return new Fixture(repository, tenant, contract, invoice, userId, onboarding, clientUsers);
+        return new Fixture(
+            repository, tenant, contract, invoice, userId, extraUserIds, onboarding, clientUsers, tenantAdmins);
     }
 
     private sealed record Fixture(
@@ -166,6 +229,8 @@ public class InvoiceHandlerTests
         Contract Contract,
         Invoice Invoice,
         Guid UserId,
+        IReadOnlyList<Guid> ExtraUserIds,
         Group OnboardingGroup,
-        Group ClientUsersGroup);
+        Group ClientUsersGroup,
+        Group TenantAdminsGroup);
 }

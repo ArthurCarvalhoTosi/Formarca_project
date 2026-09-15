@@ -134,6 +134,12 @@ This creates the EF migration under `Formarca.Infrastructure/Persistence/Migrati
 
 DbMigrator applies schema via `Database.Migrate()`; the `.sql` files are for human review.
 
+## Deploy (Hostinger)
+
+Plano de hospedagem (API .NET + front Vite + SQL Server) e CI/CD via GitHub → VPS Docker: [`docs/hostinger-cicd.md`](docs/hostinger-cicd.md).
+
+Hosting compartilhado / Web App Node.js da Hostinger **não** cobre este stack.
+
 ## Build / tests
 
 ```powershell

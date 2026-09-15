@@ -13,24 +13,30 @@ export function HomePage() {
 
   return (
     <div>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
-        {t('home.title')}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        {welcome} {t('home.foundation')}
-      </Typography.Paragraph>
-      {activeTenant ? (
-        <Typography.Paragraph>
-          {t('home.activeTenant')}{' '}
-          <Typography.Text strong>{activeTenant.name}</Typography.Text>
-        </Typography.Paragraph>
-      ) : (
-        <Typography.Paragraph type="secondary">
-          {user?.platformRole === 'PlatformAdmin'
-            ? t('home.noActiveTenantAdmin')
-            : t('home.noActiveTenant')}
-        </Typography.Paragraph>
-      )}
+      <header className="page-header">
+        <div className="page-header-copy">
+          <Typography.Title level={3} className="page-header-title">
+            {t('home.title')}
+          </Typography.Title>
+          <Typography.Paragraph type="secondary" className="page-header-description">
+            {welcome} {t('home.foundation')}
+          </Typography.Paragraph>
+        </div>
+      </header>
+      <div className="list-surface">
+        {activeTenant ? (
+          <Typography.Paragraph>
+            {t('home.activeTenant')}{' '}
+            <Typography.Text strong>{activeTenant.name}</Typography.Text>
+          </Typography.Paragraph>
+        ) : (
+          <Typography.Paragraph type="secondary">
+            {user?.platformRole === 'PlatformAdmin'
+              ? t('home.noActiveTenantAdmin')
+              : t('home.noActiveTenant')}
+          </Typography.Paragraph>
+        )}
+      </div>
     </div>
   )
 }

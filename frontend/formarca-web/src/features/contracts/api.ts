@@ -1,6 +1,6 @@
 import { mockFunnel } from '@/features/funnel/mockStore'
 import { apiDownload, apiFetchBlob, apiRequest, triggerBlobDownload } from '@/shared/api/client'
-import { ApiError, asList, toQuery } from '@/shared/api/types'
+import { ApiError, asPaged, paginate, toQuery, type PagedResult } from '@/shared/api/types'
 import { env } from '@/shared/config/env'
 import {
   parseContractSignLink,
@@ -18,9 +18,15 @@ function toClassesSnapshot(classes: number[] | string | undefined | null): strin
 }
 
 export const contractsApi = {
-  async list(filters: ContractListFilters = {}): Promise<Contract[]> {
-    if (env.mockAuth) return mockFunnel.listContracts(filters)
-    const data = await apiRequest<Contract[] | { items: Contract[] }>(
+  async list(filters: ContractListFilters = {}) {
+    if (env.mockAuth) {
+      return paginate<Contract>(
+        mockFunnel.listContracts(filters),
+        filters.page,
+        filters.pageSize,
+      )
+    }
+    const data = await apiRequest<Contract[] | PagedResult<Contract>>(
       `/api/contracts${toQuery({
         clientName: filters.clientName,
         code: filters.code,
@@ -29,10 +35,11 @@ export const contractsApi = {
         status: filters.status,
         from: filters.from,
         to: filters.to,
-        pageSize: 100,
+        page: filters.page,
+        pageSize: filters.pageSize,
       })}`,
     )
-    return asList(data)
+    return asPaged<Contract>(data, filters.page, filters.pageSize)
   },
 
   async get(id: string): Promise<Contract> {

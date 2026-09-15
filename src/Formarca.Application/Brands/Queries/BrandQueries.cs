@@ -10,8 +10,9 @@ namespace Formarca.Application.Brands.Queries;
 
 public sealed record ListBrandsQuery(
     Guid? TenantId,
+    IReadOnlyList<Guid>? TenantIds,
     string? Name,
-    int? InpiClass,
+    IReadOnlyList<int>? InpiClasses,
     int Page = 1,
     int PageSize = Paging.DefaultPageSize) : IRequest<PagedResult<BrandDto>>;
 
@@ -27,16 +28,25 @@ public sealed class ListBrandsQueryHandler(
         var (page, pageSize, skip) = Paging.Normalize(request.Page, request.PageSize);
         var query = repository.Query<Brand>().Where(b => !b.IsDeleted);
 
+        var tenantIds = request.TenantIds?.Where(id => id != Guid.Empty).Distinct().ToList()
+            ?? (request.TenantId is not null && request.TenantId != Guid.Empty
+                ? [request.TenantId.Value]
+                : new List<Guid>());
+        CommercialAccess.EnsureRequestedTenantsAllowed(currentUser, tenantIds);
+
         if (currentUser.IsPlatformAdmin)
         {
-            if (request.TenantId is not null && request.TenantId != Guid.Empty)
+            if (tenantIds.Count > 0)
             {
-                query = query.Where(b => b.TenantId == request.TenantId);
+                query = query.Where(b => tenantIds.Contains(b.TenantId));
             }
         }
         else
         {
-            var tenantId = CommercialAccess.ResolveTenantId(currentUser, request.TenantId, requiredForAdmin: false);
+            var tenantId = CommercialAccess.ResolveTenantId(
+                currentUser,
+                tenantIds.Count == 1 ? tenantIds[0] : null,
+                requiredForAdmin: false);
             query = query.Where(b => b.TenantId == tenantId);
         }
 
@@ -46,10 +56,10 @@ public sealed class ListBrandsQueryHandler(
             query = query.Where(b => b.Name.Contains(name));
         }
 
-        if (request.InpiClass is not null)
+        if (request.InpiClasses is { Count: > 0 })
         {
-            var classNumber = request.InpiClass.Value;
-            query = query.Where(b => b.InpiClasses.Any(c => c.Number == classNumber));
+            var classes = request.InpiClasses.ToList();
+            query = query.Where(b => b.InpiClasses.Any(c => classes.Contains(c.Number)));
         }
 
         var total = await query.CountAsync(cancellationToken);
@@ -59,7 +69,11 @@ public sealed class ListBrandsQueryHandler(
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<BrandDto>(items.Select(b => b.ToDto()).ToList(), total, page, pageSize);
+        return new PagedResult<BrandDto>(
+            await CommercialMappings.MapAsync(repository, items, cancellationToken),
+            total,
+            page,
+            pageSize);
     }
 }
 
@@ -78,6 +92,7 @@ public sealed class GetBrandByIdQueryHandler(
             b => b.Id == request.Id && !b.IsDeleted, cancellationToken)
             ?? throw new NotFoundException("Brand not found.");
 
-        return brand.ToDto();
+        var mapped = await CommercialMappings.MapAsync(repository, [brand], cancellationToken);
+        return mapped[0];
     }
 }

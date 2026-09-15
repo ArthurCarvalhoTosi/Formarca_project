@@ -18,7 +18,7 @@ type PayInvoicePanelProps = {
 export function PayInvoicePanel({ contractId, contractStatus }: PayInvoicePanelProps) {
   const { t, locale, dict } = useI18n()
   const { message, modal } = App.useApp()
-  const { isPlatformAdmin, refreshSession } = useAuth()
+  const { isPlatformAdmin, hasPermission, refreshSession } = useAuth()
   const queryClient = useQueryClient()
   const [method, setMethod] = useState<InvoicePaymentMethod>('Pix')
   const [installments, setInstallments] = useState(1)
@@ -118,7 +118,9 @@ export function PayInvoicePanel({ contractId, contractStatus }: PayInvoicePanelP
       ? dict.invoices.status[invoice.status as keyof typeof dict.invoices.status]
       : invoice.status
 
-  const canPay = invoice.status === 'PendingPayment' || invoice.status === 'Rejected'
+  const canPay =
+    (invoice.status === 'PendingPayment' || invoice.status === 'Rejected') &&
+    hasPermission('invoices.pay', { bypassAdmin: false })
   const canReview = isPlatformAdmin && invoice.status === 'AwaitingApproval'
 
   return (

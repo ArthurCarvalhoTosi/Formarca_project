@@ -80,7 +80,7 @@ export function ContractDetailPage() {
   const { t, locale, dict } = useI18n()
   const { message } = App.useApp()
   const navigate = useNavigate()
-  const { isPlatformAdmin, user } = useAuth()
+  const { isPlatformAdmin, hasPermission } = useAuth()
   const queryClient = useQueryClient()
   const [form] = Form.useForm<UpdateContractRequest>()
   const previousStatusRef = useRef<string | undefined>(undefined)
@@ -103,7 +103,7 @@ export function ContractDetailPage() {
   const canSign =
     query.data?.status === 'Issued' &&
     !isPlatformAdmin &&
-    (user?.permissions ?? []).includes('contracts.sign')
+    hasPermission('contracts.sign', { bypassAdmin: false })
   const isRejected = isAutentiqueRejected(query.data?.autentiqueStatus)
   const hasAutentique = Boolean(query.data && hasAutentiqueDocument(query.data))
   const contractSignUrl = query.data?.autentiqueSignUrl?.trim() || null
@@ -220,8 +220,8 @@ export function ContractDetailPage() {
   }
 
   const contract = query.data
-  const canEdit = contract.status === 'PreIssued' && isPlatformAdmin
-  const canIssue = contract.status === 'PreIssued' && isPlatformAdmin
+  const canEdit = contract.status === 'PreIssued' && hasPermission('contracts.manage')
+  const canIssue = contract.status === 'PreIssued' && hasPermission('contracts.manage')
   const canDownload = contract.status === 'Issued' || contract.status === 'Signed'
   const embedSignUrl = contractSignUrl || signLinkQuery.data?.signUrl || null
   const statusLabel =

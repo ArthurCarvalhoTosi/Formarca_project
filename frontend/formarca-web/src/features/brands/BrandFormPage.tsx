@@ -14,6 +14,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { contractsApi } from '@/features/contracts/api'
 import { customersApi } from '@/features/customers/api'
 import { ApiError, getApiErrorMessage } from '@/shared/api/types'
+import { asList } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import { brandsApi } from './api'
@@ -28,7 +29,7 @@ export function BrandFormPage() {
   const { t } = useI18n()
   const { message, modal } = App.useApp()
   const navigate = useNavigate()
-  const { isPlatformAdmin, activeTenantId } = useAuth()
+  const { isPlatformAdmin, activeTenantId, hasPermission } = useAuth()
   const queryClient = useQueryClient()
   const [form] = Form.useForm<BrandPayload>()
 
@@ -39,10 +40,12 @@ export function BrandFormPage() {
   })
 
   const tenantsQuery = useQuery({
-    queryKey: ['customers', true],
-    queryFn: () => customersApi.list(true),
+    queryKey: ['customers', 'options', true],
+    queryFn: async () => asList(await customersApi.list(true, { pageSize: 100 })),
     enabled: isPlatformAdmin,
   })
+  const canManageBrand = hasPermission('brands.manage')
+  const canPreIssue = hasPermission('contracts.manage')
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['brands'] })
@@ -129,7 +132,7 @@ export function BrandFormPage() {
       <Form<BrandPayload>
         form={form}
         layout="vertical"
-        disabled={!isPlatformAdmin}
+        disabled={!canManageBrand}
         initialValues={{
           name: current?.name,
           servicesDescription: current?.servicesDescription,
@@ -190,7 +193,7 @@ export function BrandFormPage() {
         </Form.Item>
 
         <Space wrap>
-          {isPlatformAdmin ? (
+          {canManageBrand ? (
             <Button
               type="primary"
               htmlType="submit"
@@ -199,7 +202,7 @@ export function BrandFormPage() {
               {t('common.save')}
             </Button>
           ) : null}
-          {!isNew && isPlatformAdmin ? (
+          {!isNew && canPreIssue ? (
             <Button
               onClick={() => preIssueMutation.mutate()}
               loading={preIssueMutation.isPending}
@@ -207,7 +210,7 @@ export function BrandFormPage() {
               {t('brands.preIssue')}
             </Button>
           ) : null}
-          {!isNew && isPlatformAdmin ? (
+          {!isNew && canManageBrand ? (
             <Button
               danger
               loading={deleteMutation.isPending}

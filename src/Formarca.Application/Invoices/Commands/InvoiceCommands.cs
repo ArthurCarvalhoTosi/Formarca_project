@@ -261,6 +261,9 @@ internal static class FunnelActivation
         var clientUsersGroup = await repository.FirstOrDefaultAsync<Group>(
             g => g.TenantId == tenantId && g.Name == DefaultGroupNames.ClientUsers && !g.IsDeleted,
             cancellationToken);
+        var tenantAdminsGroup = await repository.FirstOrDefaultAsync<Group>(
+            g => g.TenantId == tenantId && g.Name == DefaultGroupNames.TenantAdmins && !g.IsDeleted,
+            cancellationToken);
 
         if (onboardingGroup is null || clientUsersGroup is null)
         {
@@ -269,22 +272,30 @@ internal static class FunnelActivation
 
         var memberships = await repository.Query<UserGroupMembership>(asNoTracking: false)
             .Where(m => m.TenantId == tenantId && m.GroupId == onboardingGroup.Id && !m.IsDeleted)
+            .OrderBy(m => m.CreatedAtUtc)
+            .ThenBy(m => m.Id)
             .ToListAsync(cancellationToken);
+
+        var ownerUserId = memberships.Count == 0 ? (Guid?)null : memberships[0].UserId;
 
         foreach (var membership in memberships)
         {
             membership.SoftDelete();
 
-            var alreadyClient = await repository.AnyAsync<UserGroupMembership>(
+            var targetGroup = tenantAdminsGroup is not null && membership.UserId == ownerUserId
+                ? tenantAdminsGroup
+                : clientUsersGroup;
+
+            var alreadyInTarget = await repository.AnyAsync<UserGroupMembership>(
                 m => m.UserId == membership.UserId
                     && m.TenantId == tenantId
-                    && m.GroupId == clientUsersGroup.Id
+                    && m.GroupId == targetGroup.Id
                     && !m.IsDeleted,
                 cancellationToken);
 
-            if (!alreadyClient)
+            if (!alreadyInTarget)
             {
-                repository.Add(UserGroupMembership.Create(membership.UserId, tenantId, clientUsersGroup.Id));
+                repository.Add(UserGroupMembership.Create(membership.UserId, tenantId, targetGroup.Id));
             }
         }
     }

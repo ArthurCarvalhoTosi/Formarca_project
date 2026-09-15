@@ -90,15 +90,82 @@ export type ApiRequestOptions = {
 
 export type PagedResult<T> = {
   items: T[]
+  total?: number
   totalCount?: number
   page?: number
   pageSize?: number
+}
+
+export type NormalizedPaged<T> = {
+  items: T[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export function asList<T>(data: T[] | PagedResult<T> | null | undefined): T[] {
   if (!data) return []
   if (Array.isArray(data)) return data
   return data.items ?? []
+}
+
+function readNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return undefined
+}
+
+export function asPaged<T>(
+  data: T[] | PagedResult<T> | null | undefined,
+  fallbackPage = 1,
+  fallbackPageSize = 20,
+): NormalizedPaged<T> {
+  if (!data) {
+    return { items: [], total: 0, page: fallbackPage, pageSize: fallbackPageSize }
+  }
+  if (Array.isArray(data)) {
+    return {
+      items: data,
+      total: data.length,
+      page: fallbackPage,
+      pageSize: fallbackPageSize,
+    }
+  }
+  const record = data as PagedResult<T> & Record<string, unknown>
+  const items = Array.isArray(record.items)
+    ? record.items
+    : Array.isArray(record.Items)
+      ? (record.Items as T[])
+      : []
+  return {
+    items,
+    total:
+      readNumber(record.total, record.Total, record.totalCount, record.TotalCount) ??
+      items.length,
+    page: readNumber(record.page, record.Page) ?? fallbackPage,
+    pageSize: readNumber(record.pageSize, record.PageSize) ?? fallbackPageSize,
+  }
+}
+
+export function paginate<T>(
+  items: T[],
+  page = 1,
+  pageSize = 20,
+): NormalizedPaged<T> {
+  const normalizedPage = page < 1 ? 1 : page
+  const normalizedSize = Math.min(100, Math.max(1, pageSize || 20))
+  const start = (normalizedPage - 1) * normalizedSize
+  return {
+    items: items.slice(start, start + normalizedSize),
+    total: items.length,
+    page: normalizedPage,
+    pageSize: normalizedSize,
+  }
 }
 
 export function toQuery(

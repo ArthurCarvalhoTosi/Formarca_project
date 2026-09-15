@@ -1,21 +1,41 @@
-import { Alert, Spin, Table, Typography } from 'antd'
+import { Form, Input, Table } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { adminApi } from './api'
 import type { UserListItem } from './types'
-import { ApiError } from '@/shared/api/types'
 import { useI18n } from '@/shared/i18n'
+import {
+  ListEmptyState,
+  ListSearchLayout,
+  toTablePagination,
+  useListSearch,
+} from '@/shared/listSearch'
 import {
   TableViewToolbar,
   useTableViews,
   type TableViewColumn,
 } from '@/shared/tableViews'
 
+const DEFAULT_FILTERS = {
+  q: '',
+}
+
+function matches(row: UserListItem, query: string): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return [row.email, row.displayName, row.platformRole].some((value) =>
+    (value ?? '').toLowerCase().includes(needle),
+  )
+}
+
 export function UsersPage() {
   const { t } = useI18n()
+  const search = useListSearch(DEFAULT_FILTERS)
+
   const query = useQuery({
-    queryKey: ['admin', 'users'],
-    queryFn: () => adminApi.listUsers(),
+    queryKey: ['admin', 'users', search.page, search.pageSize],
+    queryFn: () => adminApi.listUsers({ page: search.page, pageSize: search.pageSize }),
+    enabled: search.hasSearched,
   })
 
   const columns = useMemo<TableViewColumn<UserListItem>[]>(
@@ -35,46 +55,54 @@ export function UsersPage() {
   )
 
   const tableViews = useTableViews({ tableKey: 'admin.users', columns })
-
-  if (query.isLoading) {
-    return <Spin tip={t('admin.usersLoading')} />
-  }
-
-  if (query.isError) {
-    const message =
-      query.error instanceof ApiError
-        ? query.error.message
-        : t('admin.usersLoadError')
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        message={t('admin.usersUnavailable')}
-        description={message}
-      />
-    )
-  }
-
-  const data = query.data ?? []
+  const items = useMemo(
+    () => (query.data?.items ?? []).filter((row) => matches(row, search.applied.q)),
+    [query.data?.items, search.applied.q],
+  )
 
   return (
-    <div>
-      <Typography.Title level={4} style={{ marginTop: 0 }}>
-        {t('admin.usersTitle')}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        {t('admin.usersDescription')}
-      </Typography.Paragraph>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <TableViewToolbar controller={tableViews} />
+    <ListSearchLayout
+      title={t('admin.usersTitle')}
+      description={t('admin.usersDescription')}
+      search={search}
+      views={<TableViewToolbar controller={tableViews} />}
+      loading={query.isLoading}
+      error={query.error}
+      errorTitle={t('admin.usersUnavailable')}
+      errorFallback={t('admin.usersLoadError')}
+      chips={
+        search.applied.q
+          ? [{ key: 'q', label: `${t('common.search')}: ${search.applied.q}` }]
+          : []
+      }
+      filters={
+        <Form.Item label={t('common.search')}>
+          <Input
+            allowClear
+            placeholder={t('admin.searchPlaceholder')}
+            value={search.draft.q}
+            onChange={(event) => search.setDraftValue('q', event.target.value)}
+          />
+        </Form.Item>
+      }
+    >
+      <div className="list-surface">
+        <Table<UserListItem>
+          rowKey="id"
+          dataSource={items}
+          locale={{ emptyText: <ListEmptyState searched /> }}
+          columns={tableViews.visibleColumns}
+          pagination={toTablePagination(
+            {
+              total: query.data?.total ?? 0,
+              page: query.data?.page ?? search.page,
+              pageSize: query.data?.pageSize ?? search.pageSize,
+            },
+            search.setPage,
+          )}
+          sticky
+        />
       </div>
-      <Table<UserListItem>
-        rowKey="id"
-        dataSource={data}
-        locale={{ emptyText: t('admin.usersEmpty') }}
-        columns={tableViews.visibleColumns}
-        pagination={{ pageSize: 10 }}
-      />
-    </div>
+    </ListSearchLayout>
   )
 }

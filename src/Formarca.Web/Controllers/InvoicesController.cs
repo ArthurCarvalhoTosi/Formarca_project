@@ -1,3 +1,4 @@
+using Formarca.Application.Common;
 using Formarca.Application.Common.Models;
 using Formarca.Application.Invoices.Commands;
 using Formarca.Application.Invoices.Queries;
@@ -22,12 +23,21 @@ public sealed class InvoicesController(ISender sender) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List(
         [FromQuery] Guid? tenantId,
+        [FromQuery] string[]? tenantIds,
         [FromQuery] Guid? contractId,
-        [FromQuery] InvoiceStatus? status,
+        [FromQuery] string[]? status,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
-        => Ok(await sender.Send(new ListInvoicesQuery(tenantId, contractId, status, page, pageSize), cancellationToken));
+        => Ok(await sender.Send(
+            new ListInvoicesQuery(
+                tenantId,
+                QueryFilterValues.MergeGuids(tenantId, tenantIds),
+                contractId,
+                QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<InvoiceStatus>(status)),
+                page,
+                pageSize),
+            cancellationToken));
 
     [Authorize(Policy = PermissionCodes.InvoicesRead)]
     [HttpGet("{id:guid}")]

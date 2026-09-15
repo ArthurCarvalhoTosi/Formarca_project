@@ -98,6 +98,7 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
                 ["sortable"] = true,
                 ["refusable"] = true,
                 ["new_signature_style"] = true,
+                ["show_audit_page"] = false,
                 ["locale"] = new Dictionary<string, object?>
                 {
                     ["country"] = "BR",
@@ -305,12 +306,14 @@ public sealed class AutentiqueClient(HttpClient http, IOptions<AutentiqueOptions
         return signer;
     }
 
+    // Autentique x/y are page percentages (0–100), origin top-left. These sit in the
+    // two empty boxes on the last page of the Formarca PDF (left Formarca, right client).
     private static class SignatureLayout
     {
-        public const string FormarcaX = "640";
-        public const string ClientX = "1780";
-        public const string SignatureY = "450";
-        public const string DateY = "530";
+        public const string FormarcaX = "12.0";
+        public const string ClientX = "58.0";
+        public const string SignatureY = "12.0";
+        public const string DateY = "21.0";
     }
 
     private static object[] Positions(string x, int lastPage) =>

@@ -1,10 +1,20 @@
-import { Alert, Button, Space, Spin, Table, Tag, Typography } from 'antd'
+import { Button, Form, Input, Select, Table, Tag } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ApiError } from '@/shared/api/types'
+import { customersApi } from '@/features/customers/api'
+import { asList } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
+import {
+  csvChips,
+  joinCsv,
+  ListEmptyState,
+  ListSearchLayout,
+  splitCsv,
+  toTablePagination,
+  useListSearch,
+} from '@/shared/listSearch'
 import { formatMoney } from '@/shared/money'
 import {
   TableViewToolbar,
@@ -13,6 +23,12 @@ import {
 } from '@/shared/tableViews'
 import { invoicesApi } from './api'
 import type { Invoice } from './types'
+
+const DEFAULT_FILTERS = {
+  status: '',
+  tenantId: '',
+  contractId: '',
+}
 
 function statusColor(status?: string) {
   switch (status) {
@@ -33,14 +49,40 @@ export function InvoicesPage() {
   const { t, locale, dict } = useI18n()
   const navigate = useNavigate()
   const { isPlatformAdmin } = useAuth()
+  const search = useListSearch(DEFAULT_FILTERS)
+  const canOpenSettings = isPlatformAdmin
+
+  const filters = {
+    status: search.applied.status || undefined,
+    tenantId: isPlatformAdmin ? search.applied.tenantId || undefined : undefined,
+    contractId: search.applied.contractId || undefined,
+    page: search.page,
+    pageSize: search.pageSize,
+  }
 
   const query = useQuery({
-    queryKey: ['invoices'],
-    queryFn: () => invoicesApi.list(),
+    queryKey: ['invoices', filters],
+    queryFn: () => invoicesApi.list(filters),
+    enabled: search.hasSearched,
   })
 
-  const columns = useMemo<TableViewColumn<Invoice>[]>(
-    () => [
+  const tenantsQuery = useQuery({
+    queryKey: ['customers', 'options', isPlatformAdmin],
+    queryFn: async () => asList(await customersApi.list(isPlatformAdmin, { pageSize: 100 })),
+    enabled: isPlatformAdmin,
+  })
+
+  const invoiceStatusLabel = (status: string) =>
+    status in dict.invoices.status
+      ? dict.invoices.status[status as keyof typeof dict.invoices.status]
+      : status
+
+  const columns = useMemo<TableViewColumn<Invoice>[]>(() => {
+    const statusText = (status: string) =>
+      status in dict.invoices.status
+        ? dict.invoices.status[status as keyof typeof dict.invoices.status]
+        : status
+    return [
       {
         key: 'contractCode',
         dataIndex: 'contractCode',
@@ -93,73 +135,116 @@ export function InvoicesPage() {
         dataIndex: 'status',
         title: t('invoices.colStatus'),
         render: (status: string) => (
-          <Tag color={statusColor(status)}>
-            {status in dict.invoices.status
-              ? dict.invoices.status[status as keyof typeof dict.invoices.status]
-              : status}
-          </Tag>
+          <Tag color={statusColor(status)}>{statusText(status)}</Tag>
         ),
       },
-    ],
-    [dict.invoices.status, locale, t],
-  )
+    ]
+  }, [dict.invoices.status, locale, t])
 
   const tableViews = useTableViews({ tableKey: 'invoices', columns })
 
-  if (query.isLoading) {
-    return <Spin tip={t('invoices.loading')} />
-  }
-
-  if (query.isError) {
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        message={t('invoices.unavailable')}
-        description={
-          query.error instanceof ApiError
-            ? query.error.message
-            : t('invoices.loadError')
-        }
-      />
-    )
-  }
-
-  const data = query.data ?? []
-
   return (
-    <div>
-      <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
-        <div>
-          <Typography.Title level={3} style={{ marginTop: 0 }}>
-            {t('invoices.title')}
-          </Typography.Title>
-          <Typography.Paragraph type="secondary">
-            {t('invoices.description')}
-          </Typography.Paragraph>
-        </div>
-        {isPlatformAdmin ? (
+    <ListSearchLayout
+      title={t('invoices.title')}
+      description={t('invoices.description')}
+      search={search}
+      extra={
+        canOpenSettings ? (
           <Button onClick={() => navigate('/admin/invoice-settings')}>
             {t('admin.invoiceSettings')}
           </Button>
-        ) : null}
-      </Space>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <TableViewToolbar controller={tableViews} />
+        ) : null
+      }
+      views={<TableViewToolbar controller={tableViews} />}
+      loading={query.isLoading}
+      error={query.error}
+      errorTitle={t('invoices.unavailable')}
+      errorFallback={t('invoices.loadError')}
+      chips={[
+        ...csvChips(
+          search.applied.status,
+          'status',
+          t('invoices.filterStatus'),
+          invoiceStatusLabel,
+          (value) => search.removeCsvValue('status', value),
+        ),
+        ...csvChips(
+          search.applied.tenantId,
+          'tenantId',
+          t('invoices.filterTenant'),
+          (value) => (tenantsQuery.data ?? []).find((row) => row.id === value)?.name ?? value,
+          (value) => search.removeCsvValue('tenantId', value),
+        ),
+        search.applied.contractId
+          ? { key: 'contractId', label: `${t('invoices.filterContract')}: ${search.applied.contractId}` }
+          : null,
+      ].filter(Boolean) as { key: string; label: string }[]}
+      filters={
+        <>
+          <Form.Item label={t('invoices.filterStatus')}>
+            <Select
+              mode="multiple"
+              allowClear
+              maxTagCount="responsive"
+              placeholder={t('invoices.filterStatus')}
+              value={splitCsv(search.draft.status)}
+              onChange={(value) => search.setDraftValue('status', joinCsv(value))}
+              options={['PendingPayment', 'AwaitingApproval', 'Paid', 'Rejected'].map((value) => ({
+                value,
+                label: invoiceStatusLabel(value),
+              }))}
+            />
+          </Form.Item>
+          <Form.Item label={t('invoices.filterContract')}>
+            <Input
+              allowClear
+              placeholder={t('invoices.filterContract')}
+              value={search.draft.contractId}
+              onChange={(event) => search.setDraftValue('contractId', event.target.value)}
+            />
+          </Form.Item>
+          {isPlatformAdmin ? (
+            <Form.Item label={t('invoices.filterTenant')}>
+              <Select
+                mode="multiple"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                maxTagCount="responsive"
+                placeholder={t('invoices.filterTenant')}
+                value={splitCsv(search.draft.tenantId)}
+                onChange={(value) => search.setDraftValue('tenantId', joinCsv(value))}
+                options={(tenantsQuery.data ?? []).map((row) => ({
+                  value: row.id,
+                  label: row.name,
+                }))}
+              />
+            </Form.Item>
+          ) : null}
+        </>
+      }
+    >
+      <div className="list-surface">
+        <Table<Invoice>
+          rowKey="id"
+          dataSource={query.data?.items ?? []}
+          locale={{ emptyText: <ListEmptyState searched /> }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/contratos/${record.contractId}`),
+            style: { cursor: 'pointer' },
+          })}
+          columns={tableViews.visibleColumns}
+          pagination={toTablePagination(
+            {
+              total: query.data?.total ?? 0,
+              page: query.data?.page ?? search.page,
+              pageSize: query.data?.pageSize ?? search.pageSize,
+            },
+            search.setPage,
+          )}
+          sticky
+        />
       </div>
-
-      <Table<Invoice>
-        rowKey="id"
-        dataSource={data}
-        locale={{ emptyText: t('invoices.empty') }}
-        onRow={(record) => ({
-          onClick: () => navigate(`/contratos/${record.contractId}`),
-          style: { cursor: 'pointer' },
-        })}
-        columns={tableViews.visibleColumns}
-        pagination={{ pageSize: 10 }}
-      />
-    </div>
+    </ListSearchLayout>
   )
 }

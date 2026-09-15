@@ -52,7 +52,7 @@ public class ContractQueryTests
         Assert.Single(byCompanyDocument.Items);
 
         var byStatus = await handler.Handle(
-            new ListContractsQuery(null, null, ContractStatus.PreIssued, null, null, null, null, null, null, null),
+            new ListContractsQuery(null, null, [ContractStatus.PreIssued], null, null, null, null, null, null, null),
             CancellationToken.None);
         Assert.Equal(2, byStatus.Items.Count);
 

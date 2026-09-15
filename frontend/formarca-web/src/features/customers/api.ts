@@ -13,8 +13,14 @@ import type {
 } from '@/features/registration/types'
 import { apiRequest } from '@/shared/api/client'
 import { ApiError } from '@/shared/api/types'
+import { asPaged, paginate } from '@/shared/api/types'
 import { env } from '@/shared/config/env'
 import type { CustomerListItem } from './types'
+
+type ListPaging = {
+  page?: number
+  pageSize?: number
+}
 
 function fromTenant(tenant: Tenant): CustomerListItem {
   return {
@@ -39,17 +45,20 @@ function fromRegistration(dto: RegistrationDto): CustomerListItem {
 }
 
 export const customersApi = {
-  async list(isPlatformAdmin: boolean): Promise<CustomerListItem[]> {
+  async list(isPlatformAdmin: boolean, paging: ListPaging = {}) {
     if (isPlatformAdmin) {
       if (env.mockAuth) {
-        return mockListCustomerTenants()
+        return paginate<CustomerListItem>(mockListCustomerTenants(), paging.page, paging.pageSize)
       }
-      const tenants = await adminApi.listTenants()
-      return tenants.map(fromTenant)
+      return adminApi.listTenants(paging).then((result) => ({
+        ...result,
+        items: result.items.map(fromTenant),
+      }))
     }
 
     const current = await registrationApi.getCurrent()
-    return current ? [fromRegistration(current)] : []
+    const items = current ? [fromRegistration(current)] : []
+    return asPaged<CustomerListItem>(items, paging.page, paging.pageSize)
   },
 
   async get(

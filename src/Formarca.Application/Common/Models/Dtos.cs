@@ -90,7 +90,8 @@ public sealed record BrandDto(
     string Name,
     string ServicesDescription,
     IReadOnlyList<int> InpiClasses,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    string? TenantName = null);
 
 public sealed record ContractDto(
     Guid Id,
@@ -161,6 +162,53 @@ public sealed record ProcessDto(
     DateTime CreatedAtUtc,
     string? BrandName = null,
     string? ContractCode = null);
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ProcessFunnelStage
+{
+    Brand,
+    Contract,
+    Invoice,
+    Process
+}
+
+public sealed record ProcessDashboardContractDto(
+    Guid Id,
+    string Code,
+    string Status);
+
+public sealed record ProcessDashboardInvoiceDto(
+    Guid Id,
+    string Status,
+    decimal ExpectedAmount);
+
+public sealed record ProcessDashboardProcessDto(
+    Guid Id,
+    string Status,
+    string? ProcessNumber);
+
+public sealed record ProcessDashboardItemDto(
+    Guid BrandId,
+    string BrandName,
+    Guid TenantId,
+    string? TenantName,
+    ProcessDashboardContractDto? Contract,
+    ProcessDashboardInvoiceDto? Invoice,
+    ProcessDashboardProcessDto? Process,
+    ProcessFunnelStage FunnelStage);
+
+public sealed record ProcessDashboardKpisDto(
+    int Brands,
+    int ContractsInProgress,
+    int InvoicesPending,
+    int ProcessesGenerated);
+
+public sealed record ProcessDashboardResult(
+    IReadOnlyList<ProcessDashboardItemDto> Items,
+    ProcessDashboardKpisDto Kpis,
+    int TotalCount,
+    int Page,
+    int PageSize);
 
 public sealed record ContractDocumentFile(string FileName, string ContentType, byte[] Content);
 

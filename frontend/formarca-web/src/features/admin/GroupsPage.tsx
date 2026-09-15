@@ -1,21 +1,41 @@
-import { Alert, Spin, Table, Typography } from 'antd'
+import { Form, Input, Table } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { adminApi } from './api'
 import type { Group } from './types'
-import { ApiError } from '@/shared/api/types'
 import { useI18n } from '@/shared/i18n'
+import {
+  ListEmptyState,
+  ListSearchLayout,
+  toTablePagination,
+  useListSearch,
+} from '@/shared/listSearch'
 import {
   TableViewToolbar,
   useTableViews,
   type TableViewColumn,
 } from '@/shared/tableViews'
 
+const DEFAULT_FILTERS = {
+  q: '',
+}
+
+function matches(row: Group, query: string): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return [row.name, row.description, row.tenantId].some((value) =>
+    (value ?? '').toLowerCase().includes(needle),
+  )
+}
+
 export function GroupsPage() {
   const { t } = useI18n()
+  const search = useListSearch(DEFAULT_FILTERS)
+
   const query = useQuery({
-    queryKey: ['admin', 'groups'],
-    queryFn: () => adminApi.listGroups(),
+    queryKey: ['admin', 'groups', search.page, search.pageSize],
+    queryFn: () => adminApi.listGroups({ page: search.page, pageSize: search.pageSize }),
+    enabled: search.hasSearched,
   })
 
   const columns = useMemo<TableViewColumn<Group>[]>(
@@ -26,9 +46,7 @@ export function GroupsPage() {
         dataIndex: 'tenantId',
         title: t('admin.colScope'),
         render: (tenantId: string | null | undefined) =>
-          tenantId
-            ? t('admin.scopeTenant', { id: tenantId })
-            : t('admin.scopePlatform'),
+          tenantId ? t('admin.scopeTenant', { id: tenantId }) : t('admin.scopePlatform'),
       },
       { key: 'description', dataIndex: 'description', title: t('admin.colDescription') },
     ],
@@ -36,46 +54,54 @@ export function GroupsPage() {
   )
 
   const tableViews = useTableViews({ tableKey: 'admin.groups', columns })
-
-  if (query.isLoading) {
-    return <Spin tip={t('admin.groupsLoading')} />
-  }
-
-  if (query.isError) {
-    const message =
-      query.error instanceof ApiError
-        ? query.error.message
-        : t('admin.groupsLoadError')
-    return (
-      <Alert
-        type="warning"
-        showIcon
-        message={t('admin.groupsUnavailable')}
-        description={message}
-      />
-    )
-  }
-
-  const data = query.data ?? []
+  const items = useMemo(
+    () => (query.data?.items ?? []).filter((row) => matches(row, search.applied.q)),
+    [query.data?.items, search.applied.q],
+  )
 
   return (
-    <div>
-      <Typography.Title level={4} style={{ marginTop: 0 }}>
-        {t('admin.groupsTitle')}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        {t('admin.groupsDescription')}
-      </Typography.Paragraph>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <TableViewToolbar controller={tableViews} />
+    <ListSearchLayout
+      title={t('admin.groupsTitle')}
+      description={t('admin.groupsDescription')}
+      search={search}
+      views={<TableViewToolbar controller={tableViews} />}
+      loading={query.isLoading}
+      error={query.error}
+      errorTitle={t('admin.groupsUnavailable')}
+      errorFallback={t('admin.groupsLoadError')}
+      chips={
+        search.applied.q
+          ? [{ key: 'q', label: `${t('common.search')}: ${search.applied.q}` }]
+          : []
+      }
+      filters={
+        <Form.Item label={t('common.search')}>
+          <Input
+            allowClear
+            placeholder={t('admin.searchPlaceholder')}
+            value={search.draft.q}
+            onChange={(event) => search.setDraftValue('q', event.target.value)}
+          />
+        </Form.Item>
+      }
+    >
+      <div className="list-surface">
+        <Table<Group>
+          rowKey="id"
+          dataSource={items}
+          locale={{ emptyText: <ListEmptyState searched /> }}
+          columns={tableViews.visibleColumns}
+          pagination={toTablePagination(
+            {
+              total: query.data?.total ?? 0,
+              page: query.data?.page ?? search.page,
+              pageSize: query.data?.pageSize ?? search.pageSize,
+            },
+            search.setPage,
+          )}
+          sticky
+        />
       </div>
-      <Table<Group>
-        rowKey="id"
-        dataSource={data}
-        locale={{ emptyText: t('admin.groupsEmpty') }}
-        columns={tableViews.visibleColumns}
-        pagination={{ pageSize: 10 }}
-      />
-    </div>
+    </ListSearchLayout>
   )
 }

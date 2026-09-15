@@ -31,6 +31,14 @@ export type Invoice = {
   createdAt?: string
 }
 
+export type InvoiceListFilters = {
+  status?: string
+  tenantId?: string
+  contractId?: string
+  page?: number
+  pageSize?: number
+}
+
 export type InvoiceSettings = {
   id?: string
   interestRates: InterestRates

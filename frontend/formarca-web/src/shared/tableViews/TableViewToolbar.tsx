@@ -7,13 +7,12 @@ import {
   Input,
   Modal,
   Popover,
-  Select,
   Space,
   Tooltip,
+  Typography,
 } from 'antd'
-import { Columns3 } from 'lucide-react'
+import { Check, LayoutList, Pencil } from 'lucide-react'
 import { useI18n } from '@/shared/i18n'
-import { DEFAULT_VIEW_VALUE } from './types'
 import type { TableViewController } from './useTableViews'
 import { columnLabel, nextVisibleKeys } from './visibility'
 
@@ -21,17 +20,13 @@ type TableViewToolbarProps<T> = {
   controller: TableViewController<T>
 }
 
-type NameModalState = {
-  mode: 'saveAs' | 'rename'
-  name: string
-}
-
 export function TableViewToolbar<T>({ controller }: TableViewToolbarProps<T>) {
   const { t } = useI18n()
   const { modal } = App.useApp()
-  const [nameModal, setNameModal] = useState<NameModalState | null>(null)
-  const [form] = Form.useForm<{ name: string }>()
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorName, setEditorName] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [form] = Form.useForm<{ name: string }>()
 
   const {
     views,
@@ -49,24 +44,22 @@ export function TableViewToolbar<T>({ controller }: TableViewToolbarProps<T>) {
     remove,
   } = controller
 
+  const hasSavedView = Boolean(activeView)
+  const busy = loading || mutating || submitting
+  const triggerLabel = activeView?.name ?? t('tableViews.default')
+
   useEffect(() => {
-    if (nameModal) {
-      form.setFieldsValue({ name: nameModal.name })
+    if (editorOpen) {
+      form.setFieldsValue({ name: editorName })
     } else {
       form.resetFields()
     }
-  }, [form, nameModal])
+  }, [editorName, editorOpen, form])
 
-  const hasSavedView = Boolean(activeView)
-  const busy = loading || mutating || submitting
-
-  const openSaveAs = () => {
-    setNameModal({ mode: 'saveAs', name: '' })
-  }
-
-  const openRename = () => {
-    if (!activeView) return
-    setNameModal({ mode: 'rename', name: activeView.name })
+  const openEditor = (id: string | null) => {
+    selectView(id)
+    setEditorName(id ? (views.find((view) => view.id === id)?.name ?? '') : '')
+    setEditorOpen(true)
   }
 
   const confirmDelete = () => {
@@ -76,22 +69,41 @@ export function TableViewToolbar<T>({ controller }: TableViewToolbarProps<T>) {
       okText: t('common.delete'),
       okButtonProps: { danger: true },
       cancelText: t('common.cancel'),
-      onOk: () => remove(),
+      onOk: async () => {
+        await remove()
+        setEditorOpen(false)
+      },
     })
   }
 
-  const submitName = async () => {
+  const submitSave = async () => {
+    if (!activeView) return
+    const values = await form.validateFields()
+    const name = values.name.trim()
+    setSubmitting(true)
+    try {
+      if (name && name !== activeView.name) {
+        await rename(name)
+      }
+      if (isDirty) {
+        await save()
+      }
+      setEditorOpen(false)
+    } catch {
+      // Error toast is handled in the hook.
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const submitSaveAs = async () => {
     const values = await form.validateFields()
     const name = values.name.trim()
     if (!name) return
     setSubmitting(true)
     try {
-      if (nameModal?.mode === 'rename') {
-        await rename(name)
-      } else {
-        await saveAs(name)
-      }
-      setNameModal(null)
+      await saveAs(name)
+      setEditorOpen(false)
     } catch {
       // Error toast is handled in the hook.
     } finally {
@@ -100,113 +112,170 @@ export function TableViewToolbar<T>({ controller }: TableViewToolbarProps<T>) {
   }
 
   const picker = (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        maxHeight: 360,
-        overflow: 'auto',
-        minWidth: 220,
-      }}
-    >
-      {catalog.map((column) => {
-        const checked = visibleKeys.includes(column.key)
-        const locked =
-          column.hideable === false ||
-          (checked && nextVisibleKeys(visibleKeys, column.key, false, catalog) == null)
-
-        return (
-          <Checkbox
-            key={column.key}
-            checked={checked}
-            disabled={locked}
-            onChange={(event) => toggleColumn(column.key, event.target.checked)}
-          >
-            {columnLabel(column)}
-          </Checkbox>
-        )
-      })}
+    <div className="table-views-menu">
+      <ViewRow
+        label={t('tableViews.default')}
+        active={!activeView}
+        onSelect={() => selectView(null)}
+        onEdit={() => openEditor(null)}
+        editLabel={t('tableViews.editView')}
+      />
+      {views.map((view) => (
+        <ViewRow
+          key={view.id}
+          label={view.name}
+          active={activeView?.id === view.id}
+          onSelect={() => selectView(view.id)}
+          onEdit={() => openEditor(view.id)}
+          editLabel={t('tableViews.editView')}
+        />
+      ))}
     </div>
   )
 
   return (
     <>
-      <Space wrap size="small">
-        <Select
-          aria-label={t('tableViews.selectView')}
-          value={activeView?.id ?? DEFAULT_VIEW_VALUE}
-          loading={loading}
-          disabled={busy && !loading}
-          style={{ minWidth: 200 }}
-          onChange={(value) => {
-            selectView(value === DEFAULT_VIEW_VALUE ? null : value)
-          }}
-          options={[
-            { value: DEFAULT_VIEW_VALUE, label: t('tableViews.default') },
-            ...views.map((view) => ({ value: view.id, label: view.name })),
-          ]}
-        />
-        <Popover trigger="click" placement="bottomRight" content={picker}>
-          <Button icon={<Columns3 size={16} />}>{t('tableViews.columns')}</Button>
-        </Popover>
-        <Tooltip title={hasSavedView && isDirty ? t('tableViews.unsaved') : undefined}>
+      <Popover trigger="click" placement="bottomRight" content={picker}>
+        <Tooltip title={t('tableViews.selectView')}>
           <Button
-            type={hasSavedView && isDirty ? 'primary' : 'default'}
-            disabled={!hasSavedView || !isDirty || busy}
-            loading={mutating && hasSavedView && isDirty}
-            onClick={() => {
-              void save()
-            }}
+            icon={<LayoutList size={16} />}
+            loading={loading}
+            aria-label={t('tableViews.selectView')}
           >
-            {t('common.save')}
+            {t('tableViews.title')}
+            <Typography.Text type="secondary" style={{ marginLeft: 4 }}>
+              {triggerLabel}
+            </Typography.Text>
           </Button>
         </Tooltip>
-        <Button disabled={busy} onClick={openSaveAs}>
-          {t('tableViews.saveAs')}
-        </Button>
-        <Button disabled={!hasSavedView || busy} onClick={openRename}>
-          {t('tableViews.rename')}
-        </Button>
-        <Button danger disabled={!hasSavedView || busy} onClick={confirmDelete}>
-          {t('common.delete')}
-        </Button>
-      </Space>
+      </Popover>
 
       <Modal
-        open={Boolean(nameModal)}
-        title={
-          nameModal?.mode === 'rename'
-            ? t('tableViews.rename')
-            : t('tableViews.saveAs')
-        }
-        okText={
-          nameModal?.mode === 'rename' ? t('tableViews.rename') : t('tableViews.saveAs')
-        }
-        cancelText={t('common.cancel')}
-        confirmLoading={submitting}
-        onCancel={() => setNameModal(null)}
-        onOk={() => {
-          void submitName()
-        }}
+        open={editorOpen}
+        title={t('tableViews.editView')}
+        onCancel={() => setEditorOpen(false)}
         destroyOnHidden
+        footer={
+          <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
+            {hasSavedView ? (
+              <Button danger disabled={busy} onClick={confirmDelete}>
+                {t('common.delete')}
+              </Button>
+            ) : null}
+            <Button
+              disabled={busy || (!hasSavedView && !isDirty)}
+              onClick={() => {
+                void submitSaveAs()
+              }}
+            >
+              {t('tableViews.saveAs')}
+            </Button>
+            {hasSavedView ? (
+              <Button
+                type="primary"
+                disabled={busy || (!isDirty && editorName.trim() === (activeView?.name ?? ''))}
+                loading={submitting}
+                onClick={() => {
+                  void submitSave()
+                }}
+              >
+                {t('common.save')}
+              </Button>
+            ) : null}
+          </Space>
+        }
       >
         <Form form={form} layout="vertical">
           <Form.Item
             name="name"
             label={t('tableViews.nameLabel')}
-            rules={[
-              { required: true, whitespace: true, message: t('tableViews.nameRequired') },
-            ]}
+            rules={
+              hasSavedView
+                ? [
+                    {
+                      required: true,
+                      whitespace: true,
+                      message: t('tableViews.nameRequired'),
+                    },
+                  ]
+                : [
+                    {
+                      required: true,
+                      whitespace: true,
+                      message: t('tableViews.nameRequired'),
+                    },
+                  ]
+            }
           >
             <Input
-              autoFocus
               placeholder={t('tableViews.namePlaceholder')}
               maxLength={80}
+              onChange={(event) => setEditorName(event.target.value)}
             />
           </Form.Item>
         </Form>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+          {t('tableViews.visibleColumns')}
+        </Typography.Paragraph>
+        <div className="table-views-columns">
+          {catalog.map((column) => {
+            const checked = visibleKeys.includes(column.key)
+            const locked =
+              column.hideable === false ||
+              (checked && nextVisibleKeys(visibleKeys, column.key, false, catalog) == null)
+
+            return (
+              <Checkbox
+                key={column.key}
+                checked={checked}
+                disabled={locked}
+                onChange={(event) => toggleColumn(column.key, event.target.checked)}
+              >
+                {columnLabel(column)}
+              </Checkbox>
+            )
+          })}
+        </div>
+        {!hasSavedView && isDirty ? (
+          <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+            {t('tableViews.saveAsHint')}
+          </Typography.Paragraph>
+        ) : null}
       </Modal>
     </>
+  )
+}
+
+function ViewRow({
+  label,
+  active,
+  onSelect,
+  onEdit,
+  editLabel,
+}: {
+  label: string
+  active: boolean
+  onSelect: () => void
+  onEdit: () => void
+  editLabel: string
+}) {
+  return (
+    <div className={`table-views-row${active ? ' is-active' : ''}`}>
+      <button type="button" className="table-views-row-select" onClick={onSelect}>
+        <span className="table-views-row-check" aria-hidden>
+          {active ? <Check size={14} /> : null}
+        </span>
+        <span>{label}</span>
+      </button>
+      <Tooltip title={editLabel}>
+        <Button
+          type="text"
+          size="small"
+          aria-label={editLabel}
+          icon={<Pencil size={14} />}
+          onClick={onEdit}
+        />
+      </Tooltip>
+    </div>
   )
 }

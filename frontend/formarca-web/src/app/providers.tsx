@@ -8,7 +8,7 @@ import 'dayjs/locale/pt-br'
 import { type ReactNode, useEffect, useState } from 'react'
 import { AuthProvider } from '@/shared/auth/AuthContext'
 import { I18nProvider, useI18n } from '@/shared/i18n'
-import { antdThemeToken } from '@/shared/theme/tokens'
+import { antdComponentTokens, antdThemeToken } from '@/shared/theme/tokens'
 
 type AppProvidersProps = {
   children: ReactNode
@@ -27,6 +27,7 @@ function AntdWithLocale({ children }: { children: ReactNode }) {
       locale={antdLocale}
       theme={{
         token: antdThemeToken,
+        components: antdComponentTokens,
       }}
     >
       <AntApp>

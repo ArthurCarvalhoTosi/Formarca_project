@@ -1,23 +1,36 @@
 import { mockFunnel } from '@/features/funnel/mockStore'
 import { apiRequest } from '@/shared/api/client'
-import { ApiError, asList, toQuery } from '@/shared/api/types'
+import { ApiError, asPaged, paginate, toQuery, type PagedResult } from '@/shared/api/types'
 import { env } from '@/shared/config/env'
 import { fromSettingsDto } from './interestRates'
 import type {
   ApproveInvoiceRequest,
   Invoice,
+  InvoiceListFilters,
   InvoiceSettings,
   InvoiceSettingsDto,
   SubmitPaymentRequest,
 } from './types'
 
 export const invoicesApi = {
-  async list(): Promise<Invoice[]> {
-    if (env.mockAuth) return mockFunnel.listInvoices()
-    const data = await apiRequest<Invoice[] | { items: Invoice[] }>(
-      `/api/invoices${toQuery({ pageSize: 100 })}`,
+  async list(filters: InvoiceListFilters = {}) {
+    if (env.mockAuth) {
+      return paginate<Invoice>(
+        mockFunnel.listInvoices(filters),
+        filters.page,
+        filters.pageSize,
+      )
+    }
+    const data = await apiRequest<Invoice[] | PagedResult<Invoice>>(
+      `/api/invoices${toQuery({
+        status: filters.status,
+        tenantId: filters.tenantId,
+        contractId: filters.contractId,
+        page: filters.page,
+        pageSize: filters.pageSize,
+      })}`,
     )
-    return asList(data)
+    return asPaged<Invoice>(data, filters.page, filters.pageSize)
   },
 
   async getByContract(contractId: string): Promise<Invoice | null> {

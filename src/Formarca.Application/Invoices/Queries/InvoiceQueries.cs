@@ -13,8 +13,9 @@ namespace Formarca.Application.Invoices.Queries;
 
 public sealed record ListInvoicesQuery(
     Guid? TenantId,
+    IReadOnlyList<Guid>? TenantIds,
     Guid? ContractId,
-    InvoiceStatus? Status,
+    IReadOnlyList<InvoiceStatus>? Statuses,
     int Page = 1,
     int PageSize = Paging.DefaultPageSize) : IRequest<PagedResult<InvoiceDto>>;
 
@@ -30,16 +31,25 @@ public sealed class ListInvoicesQueryHandler(
         var (page, pageSize, skip) = Paging.Normalize(request.Page, request.PageSize);
         var query = repository.Query<Invoice>().Where(i => !i.IsDeleted);
 
+        var tenantIds = request.TenantIds?.Where(id => id != Guid.Empty).Distinct().ToList()
+            ?? (request.TenantId is not null && request.TenantId != Guid.Empty
+                ? [request.TenantId.Value]
+                : new List<Guid>());
+        CommercialAccess.EnsureRequestedTenantsAllowed(currentUser, tenantIds);
+
         if (currentUser.IsPlatformAdmin)
         {
-            if (request.TenantId is not null && request.TenantId != Guid.Empty)
+            if (tenantIds.Count > 0)
             {
-                query = query.Where(i => i.TenantId == request.TenantId);
+                query = query.Where(i => tenantIds.Contains(i.TenantId));
             }
         }
         else
         {
-            var tenantId = CommercialAccess.ResolveTenantId(currentUser, request.TenantId, requiredForAdmin: false);
+            var tenantId = CommercialAccess.ResolveTenantId(
+                currentUser,
+                tenantIds.Count == 1 ? tenantIds[0] : null,
+                requiredForAdmin: false);
             query = query.Where(i => i.TenantId == tenantId);
         }
 
@@ -48,9 +58,10 @@ public sealed class ListInvoicesQueryHandler(
             query = query.Where(i => i.ContractId == request.ContractId);
         }
 
-        if (request.Status is not null)
+        if (request.Statuses is { Count: > 0 })
         {
-            query = query.Where(i => i.Status == request.Status);
+            var statuses = request.Statuses.ToList();
+            query = query.Where(i => statuses.Contains(i.Status));
         }
 
         var total = await query.CountAsync(cancellationToken);

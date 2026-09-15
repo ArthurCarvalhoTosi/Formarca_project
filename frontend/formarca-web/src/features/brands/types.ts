@@ -19,6 +19,8 @@ export type BrandPayload = {
 
 export type BrandListFilters = {
   name?: string
-  inpiClass?: number
+  inpiClass?: string | number
   tenantId?: string
+  page?: number
+  pageSize?: number
 }
