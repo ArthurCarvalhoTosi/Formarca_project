@@ -55,7 +55,7 @@ Docs oficiais usadas neste plano:
                          │
               ┌──────────▼──────────┐
               │  Caddy (ou nginx)   │  TLS Let's Encrypt
-              │  formarca.example   │
+              │  painel.dominio.com │  (site atual fica no apex)
               └───┬────────────┬────┘
                   │            │
              /    │            │  /api  /api/webhooks
@@ -120,14 +120,33 @@ SQL Server:
 
 ---
 
-## 5. DNS e TLS
+## 5. DNS e TLS — mesmo domínio do site atual
 
-1. Contratar/apontar o domínio no hPanel ([Connecting a Domain](https://docs.hostinger.com/getting-started/connecting-a-domain)).
-2. Registro **A** do apex (e `www` se quiser) → IP público do VPS.
-3. Caddy emite Let's Encrypt sozinho se as portas 80/443 estiverem abertas e o A record já tiver propagado.
-4. Autentique precisa da URL **pública HTTPS** do webhook, por exemplo `https://app.seudominio.com/api/webhooks/autentique`.
+O domínio **já na Hostinger** (site institucional no hPanel) é o que vamos usar. Não precisa comprar outro.
 
-Subdomínio opcional (`app.` vs apex) é só gosto. Evitar `api.` separado no começo: dobra CORS, SSL e deploy.
+Um hostname (`formarca.com` ou `www`) só aponta para **um IP**. O site atual vive no IP do hosting compartilhado; o painel vai viver no IP do **VPS**. Por isso o apex continua no site, e o Formarca entra num **subdomínio**.
+
+| Host | Para onde aponta | O que serve |
+|---|---|---|
+| `dominio.com` e `www` | **não mexer** (A/CNAME atuais do site) | site que já está no ar |
+| `painel.dominio.com` | registro **A** → IP do VPS | SPA + API (`/api`) + webhook |
+| MX / e-mail | **não mexer** | caixas Hostinger, se existirem |
+
+Nameservers do domínio **continuam** na Hostinger. Só adicionar um A record em DNS ([Domain pointing](https://docs.hostinger.com/domains/domain-pointing) / [DNS Management](https://docs.hostinger.com/domains/dns-management)):
+
+```
+painel    A    <IP-do-VPS>
+```
+
+Opcional: `www.painel` não precisa. SSL do site atual segue no hPanel. No VPS o Caddy emite Let's Encrypt **só** para `painel.dominio.com` (porta 80/443 abertas + A já propagado).
+
+Same-origin continua valendo: o browser fala com `https://painel.dominio.com` e `https://painel.dominio.com/api/...`. Não criar `api.dominio.com` no começo (CORS, segundo certificado, segundo deploy).
+
+Autentique: webhook `https://painel.dominio.com/api/webhooks/autentique`.
+
+**Não fazer:** apontar o apex/`www` para o VPS. O site atual some desse endereço. Só faria sentido se o institucional for desligado ou migrado para o VPS também.
+
+Nome do subdomínio é livre (`painel`, `app`, `cliente`). Preferência deste plano: **`painel`**.
 
 ---
 
@@ -176,7 +195,7 @@ VITE_MOCK_AUTH=false
 Caddy (exemplo):
 
 ```
-app.seudominio.com {
+painel.dominio.com {
   encode gzip
   reverse_proxy /api* api:8080
   reverse_proxy /* front:80
@@ -509,9 +528,11 @@ Rollback de migration EF: não é automático. Ter os `.sql` em `src/Formarca.Db
 Depois do deploy:
 
 ```bash
-curl -I https://app.seudominio.com/
-curl https://app.seudominio.com/api/health
-curl https://app.seudominio.com/api/version
+curl -I https://painel.dominio.com/
+curl https://painel.dominio.com/api/health
+curl https://painel.dominio.com/api/version
+# site institucional continua no apex:
+curl -I https://dominio.com/
 ```
 
 - Caddy access log + API Serilog.
@@ -529,7 +550,7 @@ Só se o VPS ficar só para API+SQL e quiser o SPA no [Node.js Web App](https://
 - Root directory: `frontend/formarca-web`
 - Framework: Vite / React
 - Node 22, `npm run build`, output `dist`
-- Env: `VITE_API_URL=https://api.seudominio.com`, `VITE_MOCK_AUTH=false`
+- Env: `VITE_API_URL=https://painel.dominio.com`, `VITE_MOCK_AUTH=false` (só neste plano B; no plano principal a URL é vazia / same-origin)
 - CORS na API para a origem do SPA
 - Dois deploys, dois certificados, webhook continua no VPS
 
@@ -552,7 +573,10 @@ Checklist. Não pular.
 - [ ] VPS Docker, **8 GB**, snapshot ligado
 - [ ] SSH por chave
 - [ ] Firewall 22/80/443
-- [ ] A record do domínio → IP do VPS
+- [ ] **Não** alterar A/CNAME/MX do site atual (`dominio.com` / `www`)
+- [ ] A record `painel` → IP do VPS
+- [ ] Propagação: `dig painel.dominio.com` resolve o VPS
+- [ ] Caddyfile com `painel.dominio.com` (Let's Encrypt nesse host)
 - [ ] Token API Hostinger gerado (guardar no GitHub, não no repo)
 - [ ] Anotar `HOSTINGER_VM_ID`
 
