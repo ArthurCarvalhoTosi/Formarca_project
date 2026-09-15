@@ -48,7 +48,8 @@ public sealed class RefreshTokenCommandHandler(
         var newRefresh = jwt.CreateRefreshToken();
         existing.Revoke(newRefresh.TokenHash);
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(
+            repository, user.Id, cancellationToken, includeNonActiveTenants: user.IsPlatformAdmin);
         var tenantId = existing.TenantId;
 
         var permissions = await AuthTokenIssuer.ResolvePermissionsAsync(

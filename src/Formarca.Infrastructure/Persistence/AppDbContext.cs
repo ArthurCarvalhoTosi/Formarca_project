@@ -2,24 +2,28 @@ using System.Reflection;
 using System.Text.Json;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Domain.Auditing;
+using Formarca.Domain.Brands;
 using Formarca.Domain.Common;
+using Formarca.Domain.Contracts;
 using Formarca.Domain.IdentityAccess;
+using Formarca.Domain.Invoices;
 using Formarca.Domain.PlatformContent;
 using Formarca.Domain.Tenancy;
 using Formarca.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using ProcessEntity = Formarca.Domain.Processes.Process;
 
 namespace Formarca.Infrastructure.Persistence;
 
 public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
 {
     private static readonly MethodInfo SoftDeleteFilterMethod =
-        typeof(AppDbContext).GetMethod(nameof(SetSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Static)!;
+        typeof(AppDbContext).GetMethod(nameof(SetSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     private static readonly MethodInfo TenantAndSoftDeleteFilterMethod =
-        typeof(AppDbContext).GetMethod(nameof(SetTenantAndSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Static)!;
+        typeof(AppDbContext).GetMethod(nameof(SetTenantAndSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -54,11 +58,25 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
 
     public DbSet<UserGroupMembership> UserGroupMemberships => Set<UserGroupMembership>();
 
+    public DbSet<UserTableView> UserTableViews => Set<UserTableView>();
+
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<PlatformNotice> PlatformNotices => Set<PlatformNotice>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    public DbSet<Brand> Brands => Set<Brand>();
+
+    public DbSet<Contract> Contracts => Set<Contract>();
+
+    public DbSet<ContractFile> ContractFiles => Set<ContractFile>();
+
+    public DbSet<InvoiceSettings> InvoiceSettings => Set<InvoiceSettings>();
+
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+
+    public DbSet<ProcessEntity> Processes => Set<ProcessEntity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -110,29 +128,37 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             if (typeof(ITenantScoped).IsAssignableFrom(clr))
             {
                 TenantAndSoftDeleteFilterMethod.MakeGenericMethod(clr)
-                    .Invoke(null, [builder, _tenantContext]);
+                    .Invoke(this, [builder]);
             }
             else
             {
                 SoftDeleteFilterMethod.MakeGenericMethod(clr)
-                    .Invoke(null, [builder, _tenantContext]);
+                    .Invoke(this, [builder]);
             }
         }
     }
 
-    private static void SetSoftDeleteFilter<TEntity>(ModelBuilder builder, ITenantContext tenantContext)
+    // EF evaluates these DbContext members per instance at query time.
+    // Capturing ITenantContext in a static filter would pin the first scope forever.
+    private bool IgnoreSoftDeleteFilters => _tenantContext.IgnoreSoftDeleteFilters;
+
+    private bool IgnoreTenantFilters => _tenantContext.IgnoreTenantFilters;
+
+    private Guid? CurrentTenantId => _tenantContext.TenantId;
+
+    private void SetSoftDeleteFilter<TEntity>(ModelBuilder builder)
         where TEntity : Entity
     {
         builder.Entity<TEntity>().HasQueryFilter(e =>
-            tenantContext.IgnoreSoftDeleteFilters || !e.IsDeleted);
+            IgnoreSoftDeleteFilters || !e.IsDeleted);
     }
 
-    private static void SetTenantAndSoftDeleteFilter<TEntity>(ModelBuilder builder, ITenantContext tenantContext)
+    private void SetTenantAndSoftDeleteFilter<TEntity>(ModelBuilder builder)
         where TEntity : Entity, ITenantScoped
     {
         builder.Entity<TEntity>().HasQueryFilter(e =>
-            (tenantContext.IgnoreSoftDeleteFilters || !e.IsDeleted) &&
-            (tenantContext.IgnoreTenantFilters || e.TenantId == tenantContext.TenantId));
+            (IgnoreSoftDeleteFilters || !e.IsDeleted) &&
+            (IgnoreTenantFilters || e.TenantId == CurrentTenantId));
     }
 
     private List<AuditLog> BuildAuditLogs()

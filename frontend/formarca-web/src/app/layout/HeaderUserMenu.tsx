@@ -2,9 +2,11 @@ import { Avatar, Dropdown, Space, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import { LogOut, User } from 'lucide-react'
 import { useAuth } from '@/shared/auth/AuthContext'
+import { useI18n } from '@/shared/i18n'
 
 export function HeaderUserMenu() {
   const { user, logout, isPlatformAdmin } = useAuth()
+  const { t } = useI18n()
 
   const items: MenuProps['items'] = [
     {
@@ -16,7 +18,7 @@ export function HeaderUserMenu() {
           </Typography.Text>
           <br />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {isPlatformAdmin ? 'Platform Admin' : 'Usuário'}
+            {isPlatformAdmin ? t('header.platformAdmin') : t('header.user')}
           </Typography.Text>
         </div>
       ),
@@ -26,7 +28,7 @@ export function HeaderUserMenu() {
     {
       key: 'logout',
       icon: <LogOut size={14} />,
-      label: 'Sair',
+      label: t('header.logout'),
       onClick: () => {
         void logout()
       },

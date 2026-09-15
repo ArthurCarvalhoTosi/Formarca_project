@@ -27,8 +27,10 @@ public static class DatabaseSeeder
         tenantContext.SetIgnoreTenantFilters(true);
 
         await SeedPermissionsAsync(db, cancellationToken);
+        await SeedInvoiceSettingsAsync(db, cancellationToken);
         await SeedPlatformAdminAsync(userManager, logger, cancellationToken);
         await SeedDemoTenantAsync(db, repository, userManager, cancellationToken);
+        await SeedDefaultGroupsForExistingTenantsAsync(db, repository, cancellationToken);
     }
 
     private static async Task SeedPermissionsAsync(AppDbContext db, CancellationToken cancellationToken)
@@ -44,6 +46,17 @@ public static class DatabaseSeeder
             db.Permissions.Add(Permission.Create(code, name));
         }
 
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task SeedInvoiceSettingsAsync(AppDbContext db, CancellationToken cancellationToken)
+    {
+        if (await db.InvoiceSettings.AnyAsync(s => !s.IsDeleted, cancellationToken))
+        {
+            return;
+        }
+
+        db.InvoiceSettings.Add(Domain.Invoices.InvoiceSettings.CreateDefault());
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -104,6 +117,7 @@ public static class DatabaseSeeder
         }
 
         var membershipExists = await db.UserTenantMemberships
+            .IgnoreQueryFilters()
             .AnyAsync(m => m.UserId == admin.Id && m.TenantId == tenant.Id && !m.IsDeleted, cancellationToken);
 
         if (!membershipExists)
@@ -118,15 +132,34 @@ public static class DatabaseSeeder
 
         if (adminGroup is not null)
         {
-            var inGroup = await db.UserGroupMemberships.AnyAsync(
-                g => g.UserId == admin.Id && g.GroupId == adminGroup.Id && !g.IsDeleted,
-                cancellationToken);
+            var inGroup = await db.UserGroupMemberships
+                .IgnoreQueryFilters()
+                .AnyAsync(
+                    g => g.UserId == admin.Id && g.GroupId == adminGroup.Id && !g.IsDeleted,
+                    cancellationToken);
 
             if (!inGroup)
             {
                 db.UserGroupMemberships.Add(UserGroupMembership.Create(admin.Id, tenant.Id, adminGroup.Id));
                 await db.SaveChangesAsync(cancellationToken);
             }
+        }
+    }
+
+    private static async Task SeedDefaultGroupsForExistingTenantsAsync(
+        AppDbContext db,
+        Application.Common.Interfaces.IGenericRepository repository,
+        CancellationToken cancellationToken)
+    {
+        var tenantIds = await db.Tenants
+            .Where(t => !t.IsDeleted)
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var tenantId in tenantIds)
+        {
+            await Application.IdentityAccess.Auth.AuthTokenIssuer.EnsureDefaultTenantGroupsAsync(
+                repository, tenantId, cancellationToken);
         }
     }
 }

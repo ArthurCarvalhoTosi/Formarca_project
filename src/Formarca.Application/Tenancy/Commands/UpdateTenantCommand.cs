@@ -2,6 +2,7 @@ using FluentValidation;
 using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
+using Formarca.Application.Tenancy;
 using Formarca.Domain.Tenancy;
 using MediatR;
 
@@ -37,6 +38,6 @@ public sealed class UpdateTenantCommandHandler(
         tenant.Update(request.Name, request.Document, request.Status);
         await repository.CommitAsync(cancellationToken);
 
-        return new TenantDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Document, tenant.Status.ToString(), tenant.CreatedAtUtc);
+        return tenant.ToTenantDto();
     }
 }

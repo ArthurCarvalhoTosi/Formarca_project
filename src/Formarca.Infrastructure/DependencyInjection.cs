@@ -24,7 +24,9 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
         services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(connectionString));
+            options.UseSqlServer(
+                connectionString,
+                sql => sql.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)));
 
         services
             .AddIdentity<ApplicationUser, ApplicationRole>(options =>
@@ -68,7 +70,15 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IGenericRepository, GenericRepository>();
+        services.Configure<Documents.DocumentOptions>(configuration.GetSection(Documents.DocumentOptions.SectionName));
+        services.AddScoped<IContractDocumentGenerator, Documents.ContractDocumentGenerator>();
+        services.AddSingleton<IContractTemplateProvider, Documents.EmbeddedContractTemplateProvider>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.Configure<Autentique.AutentiqueOptions>(configuration.GetSection(Autentique.AutentiqueOptions.SectionName));
+        services.AddHttpClient<IAutentiqueClient, Autentique.AutentiqueClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(2);
+        });
 
         return services;
     }

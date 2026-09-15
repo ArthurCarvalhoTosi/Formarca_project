@@ -1,6 +1,7 @@
 using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
+using Formarca.Application.Tenancy;
 using Formarca.Domain.Tenancy;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,10 +23,32 @@ public sealed class ListTenantsQueryHandler(
 
         var query = repository.Query<Tenant>().OrderBy(t => t.Name);
         var total = await query.CountAsync(cancellationToken);
-        var items = await query
+            var items = await query
             .Skip(skip)
             .Take(pageSize)
-            .Select(t => new TenantDto(t.Id, t.Name, t.Slug, t.Document, t.Status.ToString(), t.CreatedAtUtc))
+            .Select(t => new TenantDto(
+                t.Id,
+                t.Name,
+                t.Slug,
+                t.Email,
+                t.Phone,
+                t.Document,
+                t.LegalRepresentativeName,
+                t.LegalRepresentativeDocument,
+                t.QuotedAmount,
+                t.BudgetNotes,
+                t.Address == null
+                    ? null
+                    : new AddressDto(
+                        t.Address.ZipCode,
+                        t.Address.Street,
+                        t.Address.Number,
+                        t.Address.Complement,
+                        t.Address.Neighborhood,
+                        t.Address.City,
+                        t.Address.State),
+                t.Status.ToString(),
+                t.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<TenantDto>(items, total, page, pageSize);
@@ -45,6 +68,6 @@ public sealed class GetTenantByIdQueryHandler(
         var tenant = await repository.FirstOrDefaultAsync<Tenant>(t => t.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException("Tenant not found.");
 
-        return new TenantDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Document, tenant.Status.ToString(), tenant.CreatedAtUtc);
+        return tenant.ToTenantDto();
     }
 }

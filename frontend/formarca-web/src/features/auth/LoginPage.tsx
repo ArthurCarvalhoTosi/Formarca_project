@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Alert, Button, Card, Form, Input, Typography } from 'antd'
 import { Lock, Mail } from 'lucide-react'
+import { BrandLogo } from '@/shared/brand/BrandLogo'
 import { ApiError } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
-import { MOCK_CREDENTIALS } from '@/shared/auth/mockAuth'
+import { MOCK_CLIENT_CREDENTIALS, MOCK_CREDENTIALS } from '@/shared/auth/mockAuth'
 import { env } from '@/shared/config/env'
+import { LocaleSwitcher, useI18n } from '@/shared/i18n'
 
 type LoginFormValues = {
   email: string
@@ -14,6 +16,7 @@ type LoginFormValues = {
 
 export function LoginPage() {
   const { status, login } = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
@@ -35,11 +38,15 @@ export function LoginPage() {
       navigate(from, { replace: true })
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message || 'Falha no login')
+        setError(
+          err.status === 401
+            ? t('auth.loginFailed')
+            : err.message || t('auth.loginFailed'),
+        )
       } else if (env.mockAuth) {
-        setError('Não foi possível entrar. Tente novamente.')
+        setError(t('auth.loginRetry'))
       } else {
-        setError('Não foi possível conectar à API. Verifique VITE_API_URL.')
+        setError(t('auth.apiUnreachable'))
       }
     } finally {
       setSubmitting(false)
@@ -48,26 +55,36 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
+      <div className="public-locale">
+        <LocaleSwitcher />
+      </div>
       <Card className="login-card" variant="borderless">
         <div className="login-brand">
-          <Typography.Title level={2} style={{ marginBottom: 4 }}>
-            Formarca
+          <BrandLogo height={32} />
+          <Typography.Title level={4} className="login-brand-title">
+            {t('auth.title')}
           </Typography.Title>
-          <Typography.Text type="secondary">
-            Painel do Cliente — acesse com suas credenciais
-          </Typography.Text>
+          <Typography.Text type="secondary">{t('auth.subtitle')}</Typography.Text>
         </div>
 
         {env.mockAuth ? (
           <Alert
             type="info"
             showIcon
-            message="Login mockado (sem API)"
+            message={t('auth.mockBanner')}
             description={
               <>
-                Use <Typography.Text code>{MOCK_CREDENTIALS.email}</Typography.Text>{' '}
-                / <Typography.Text code>{MOCK_CREDENTIALS.password}</Typography.Text>{' '}
-                para entrar no front.
+                {t('auth.mockHint')}{' '}
+                <Typography.Text code>{MOCK_CREDENTIALS.email}</Typography.Text>{' '}
+                /{' '}
+                <Typography.Text code>
+                  {MOCK_CREDENTIALS.password}
+                </Typography.Text>
+                <br />
+                {t('auth.mockClientHint', {
+                  email: MOCK_CLIENT_CREDENTIALS.email,
+                  password: MOCK_CLIENT_CREDENTIALS.password,
+                })}
               </>
             }
             style={{ marginBottom: 16 }}
@@ -97,25 +114,25 @@ export function LoginPage() {
           }
         >
           <Form.Item
-            label="E-mail"
+            label={t('auth.email')}
             name="email"
             rules={[
-              { required: true, message: 'Informe o e-mail' },
-              { type: 'email', message: 'E-mail inválido' },
+              { required: true, message: t('validation.required') },
+              { type: 'email', message: t('validation.email') },
             ]}
           >
             <Input
               size="large"
               prefix={<Mail size={16} />}
-              placeholder="voce@empresa.com"
+              placeholder={t('auth.emailPlaceholder')}
               autoComplete="username"
             />
           </Form.Item>
 
           <Form.Item
-            label="Senha"
+            label={t('auth.password')}
             name="password"
-            rules={[{ required: true, message: 'Informe a senha' }]}
+            rules={[{ required: true, message: t('validation.required') }]}
           >
             <Input.Password
               size="large"
@@ -132,7 +149,7 @@ export function LoginPage() {
             block
             loading={submitting}
           >
-            Entrar
+            {t('auth.signIn')}
           </Button>
         </Form>
 
@@ -140,8 +157,15 @@ export function LoginPage() {
           type="secondary"
           style={{ marginTop: 24, marginBottom: 0, fontSize: 12 }}
         >
-          Problemas de acesso? Contate o administrador Formarca.{' '}
-          <Link to="/">Voltar</Link>
+          {t('auth.registerPrompt')}{' '}
+          <Link to="/register">{t('auth.registerLink')}</Link>
+        </Typography.Paragraph>
+
+        <Typography.Paragraph
+          type="secondary"
+          style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}
+        >
+          {t('auth.accessProblems')}
         </Typography.Paragraph>
       </Card>
     </div>

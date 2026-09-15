@@ -17,6 +17,7 @@ public sealed class TenantsController(ISender sender) : ControllerBase
 {
     public sealed record CreateTenantRequest(string Name, string Slug, string? Document);
     public sealed record UpdateTenantRequest(string Name, string? Document, TenantStatus Status);
+    public sealed record ApproveTenantRequest(string Password);
 
     [HttpGet]
     public async Task<IActionResult> List(
@@ -46,4 +47,12 @@ public sealed class TenantsController(ISender sender) : ControllerBase
         await sender.Send(new DeleteTenantCommand(id), cancellationToken);
         return NoContent();
     }
+
+    [HttpPost("{id:guid}/approve")]
+    public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveTenantRequest request, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new ApproveTenantCommand(id, request.Password), cancellationToken));
+
+    [HttpPost("{id:guid}/reject")]
+    public async Task<IActionResult> Reject(Guid id, CancellationToken cancellationToken)
+        => Ok(await sender.Send(new RejectTenantCommand(id), cancellationToken));
 }

@@ -3,6 +3,7 @@ using Formarca.Application.Common.Exceptions;
 using Formarca.Application.Common.Interfaces;
 using Formarca.Application.Common.Models;
 using Formarca.Application.IdentityAccess.Auth;
+using Formarca.Application.Tenancy;
 using Formarca.Domain.Tenancy;
 using MediatR;
 
@@ -41,6 +42,6 @@ public sealed class CreateTenantCommandHandler(
 
         await AuthTokenIssuer.EnsureDefaultTenantGroupsAsync(repository, tenant.Id, cancellationToken);
 
-        return new TenantDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Document, tenant.Status.ToString(), tenant.CreatedAtUtc);
+        return tenant.ToTenantDto();
     }
 }

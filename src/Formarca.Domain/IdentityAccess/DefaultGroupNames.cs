@@ -4,4 +4,5 @@ public static class DefaultGroupNames
 {
     public const string TenantAdmins = "TenantAdmins";
     public const string ClientUsers = "ClientUsers";
+    public const string ClientOnboarding = "ClientOnboarding";
 }
