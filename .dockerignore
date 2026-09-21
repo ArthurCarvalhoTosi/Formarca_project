@@ -1,0 +1,16 @@
+**/.git
+**/.vs
+**/.idea
+**/.cursor
+**/bin
+**/obj
+**/node_modules
+frontend/**/dist
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.json.example
+!**/appsettings.*.json.example
+tests
+docs
+agent-transcripts
+*.user
