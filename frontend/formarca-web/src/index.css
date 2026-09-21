@@ -782,3 +782,241 @@ h5,
     align-items: flex-start;
   }
 }
+
+.home-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-tenant {
+  margin-top: 0 !important;
+}
+
+.home-section {
+  margin-top: 8px;
+}
+
+.home-section-title,
+.home-card-title,
+.home-about-title {
+  margin-top: 0 !important;
+  margin-bottom: 12px !important;
+}
+
+.home-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.home-shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 124px;
+  padding: 16px;
+  background: var(--fm-white);
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  box-shadow: var(--fm-shadow-warm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.home-shortcut:hover {
+  border-color: var(--fm-primary);
+  color: inherit;
+}
+
+.home-shortcut-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(240, 118, 42, 0.12);
+  color: var(--fm-primary-dark);
+}
+
+.home-shortcut-title {
+  font-family: var(--fm-font-display);
+  font-weight: 650;
+}
+
+.home-shortcut-hint {
+  color: rgba(36, 36, 36, 0.62);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.home-about {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.home-about-hero,
+.home-card {
+  background: var(--fm-white);
+  border: 1px solid var(--fm-border);
+  border-radius: var(--fm-radius);
+  box-shadow: var(--fm-shadow-warm);
+  padding: 20px;
+}
+
+.home-eyebrow {
+  margin: 0 0 6px;
+  color: var(--fm-primary-dark);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.home-about-lead {
+  max-width: 640px;
+  margin-bottom: 16px !important;
+}
+
+.home-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-highlights li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(240, 118, 42, 0.1);
+  color: var(--fm-text-on-amber);
+  font-size: 13px;
+}
+
+.home-about-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.home-steps,
+.home-reasons,
+.home-contact {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-steps li,
+.home-reasons li {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--fm-border);
+}
+
+.home-steps li:first-child,
+.home-reasons li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.home-steps p,
+.home-reasons p,
+.home-team p {
+  margin: 4px 0 0;
+  color: rgba(36, 36, 36, 0.68);
+  font-size: 13px;
+}
+
+.home-step-index {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--fm-primary);
+  color: var(--fm-white);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.home-contact li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--fm-primary-dark);
+}
+
+.home-contact a {
+  color: inherit;
+}
+
+.home-contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--fm-radius);
+  background: var(--fm-primary);
+  color: var(--fm-white);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.home-link:hover {
+  color: var(--fm-white);
+  background: var(--fm-primary-dark);
+}
+
+.home-link-ghost {
+  background: transparent;
+  color: var(--fm-primary-dark);
+  border: 1px solid rgba(240, 118, 42, 0.45);
+}
+
+.home-link-ghost:hover {
+  color: var(--fm-primary-dark);
+  background: rgba(240, 118, 42, 0.08);
+}
+
+.home-team {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.home-faq-answer {
+  margin: 0;
+  color: rgba(36, 36, 36, 0.72);
+}
+
+.home-team span {
+  display: block;
+  margin-top: 2px;
+  color: var(--fm-primary-dark);
+  font-size: 13px;
+}
+
+@media (max-width: 800px) {
+  .home-about-grid,
+  .home-team {
+    grid-template-columns: 1fr;
+  }
+}

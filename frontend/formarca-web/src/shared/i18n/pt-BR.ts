@@ -82,11 +82,97 @@ export const ptBR: Dictionary = {
     welcome: 'Bem-vindo.',
     welcomeNamed: 'Bem-vindo, {name}.',
     foundation:
-      'Esta é a fundação do Painel do Cliente — os módulos de negócio entram em entregas futuras.',
+      'Acompanhe o registro da sua marca, contratos e faturas em um só lugar.',
     activeTenant: 'Cliente ativo:',
     noActiveTenant: 'Nenhum cliente ativo na sessão.',
     noActiveTenantAdmin:
       'Nenhum cliente ativo na sessão (esperado para Platform Admin sem membership).',
+    shortcutsTitle: 'Acesso rápido',
+    shortcutProcesses: 'Processos',
+    shortcutProcessesHint: 'Acompanhe o andamento no INPI',
+    shortcutContracts: 'Contratos',
+    shortcutContractsHint: 'Veja e assine seus contratos',
+    shortcutInvoices: 'Faturas',
+    shortcutInvoicesHint: 'Consulte pagamentos e vencimentos',
+    shortcutCustomers: 'Clientes',
+    shortcutCustomersHint: 'Cadastro e dados da empresa',
+    shortcutBrands: 'Marcas',
+    shortcutBrandsHint: 'Marcas vinculadas ao cliente',
+    shortcutInformation: 'Informações',
+    shortcutInformationHint: 'Avisos e orientações',
+    shortcutAdmin: 'Administração',
+    shortcutAdminHint: 'Tenants, usuários e grupos',
+    shortcutStatuses: 'Status de marca',
+    shortcutStatusesHint: 'Edite o catálogo e crie status novos',
+    faqTitle: 'Perguntas frequentes',
+    faqDurationQ: 'Quanto tempo demora o registro de marca no INPI?',
+    faqDurationA:
+      'O processo completo pode levar de 12 a 18 meses. A ForMarca protocola em até 24h e acompanha cada etapa.',
+    faqKnowledgeQ: 'Preciso de conhecimento prévio sobre registro de marcas?',
+    faqKnowledgeA:
+      'Não. A equipe cuida da burocracia e da documentação.',
+    faqRefusalQ: 'O que acontece se a marca for recusada pelo INPI?',
+    faqRefusalA:
+      'A análise de viabilidade reduz esse risco. Se houver objeção, a equipe orienta as alternativas e os recursos.',
+    faqFollowUpQ: 'Como funciona o acompanhamento do processo?',
+    faqFollowUpA:
+      'Você recebe atualização em cada etapa e fala com a equipe por WhatsApp e e-mail. No painel, o andamento aparece em Processos.',
+    faqInUseQ: 'Posso registrar uma marca que já está em uso?',
+    faqInUseA:
+      'Sim. Registrar o quanto antes protege o nome e evita que outra pessoa protocole primeiro.',
+    faqFirstStepQ: 'Qual é o primeiro passo para registrar minha marca?',
+    faqFirstStepA:
+      'Fale pelo WhatsApp ou e-mail. A ForMarca faz uma análise inicial e explica o processo.',
+    faqBrazilQ: 'A proteção da marca vale para todo o Brasil?',
+    faqBrazilA:
+      'Sim. O registro no INPI vale em todo o território nacional.',
+    faqIndividualQ: 'Pessoa física pode registrar uma marca?',
+    faqIndividualA:
+      'Sim. Vale para CPF e para CNPJ. A equipe indica a opção mais adequada.',
+    faqClassesQ: 'O que são as classes de registro de marca?',
+    faqClassesA:
+      'São os segmentos de produtos ou serviços. Há 45 classes, e a escolha define o alcance da proteção.',
+    aboutEyebrow: 'ForMarca',
+    aboutTitle: 'Registro de marca no INPI',
+    aboutLead:
+      'Proteja a identidade da sua marca e garanta segurança e reconhecimento para o seu negócio.',
+    highlightProtocol: 'Protocolo em 24h',
+    highlightSupport: 'Suporte especializado',
+    highlightCopies: 'Proteção contra cópias',
+    whyTitle: 'Por que registrar sua marca?',
+    whyLegalTitle: 'Proteção legal',
+    whyLegalBody:
+      'Direitos exclusivos sobre a marca e impedimento de uso do nome por terceiros.',
+    whyTrustTitle: 'Credibilidade',
+    whyTrustBody:
+      'Marca oficialmente registrada aumenta a confiança de clientes e parceiros.',
+    whyValueTitle: 'Valorização',
+    whyValueBody:
+      'A marca vira um ativo que pode ser licenciado ou vendido.',
+    stepsTitle: 'Etapas do processo',
+    stepViabilityTitle: 'Análise de viabilidade',
+    stepViabilityBody: 'Pesquisa se a marca pode ser registrada.',
+    stepContractTitle: 'Contrato',
+    stepContractBody: 'Depois do formulário, formalizamos o contrato.',
+    stepFilingTitle: 'Protocolo e acompanhamento',
+    stepFilingBody: 'Protocolo no INPI e suporte em cada etapa.',
+    stepCertificateTitle: 'Certificado final',
+    stepCertificateBody: 'Marca publicada oficialmente pelo INPI.',
+    contactTitle: 'Contato',
+    contactCnpj: 'CNPJ 62.500.545/0001-14',
+    contactCities: 'Cachoeirinha/RS · São Paulo/SP',
+    visitSite: 'Site ForMarca',
+    whatsapp: 'WhatsApp',
+    teamTitle: 'Equipe',
+    teamLead: 'Especialistas em registro de marcas no INPI.',
+    gabrielName: 'Gabriel Carvalho',
+    gabrielRole: 'Especialista em propriedade intelectual',
+    gabrielBio:
+      'Mais de 4 anos em registro de marcas, proteção de propriedade intelectual e consultoria de branding.',
+    lucasName: 'Lucas Souza',
+    lucasRole: 'Suporte e administrativo',
+    lucasBio:
+      'Contratos, organização dos processos e relacionamento com os clientes.',
   },
   placeholder: {
     comingSoon: 'Módulo previsto no Painel do Cliente. Em breve.',

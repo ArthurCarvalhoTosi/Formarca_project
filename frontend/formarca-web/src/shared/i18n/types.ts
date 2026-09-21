@@ -120,6 +120,77 @@ export type Dictionary = {
     activeTenant: string
     noActiveTenant: string
     noActiveTenantAdmin: string
+    shortcutsTitle: string
+    shortcutProcesses: string
+    shortcutProcessesHint: string
+    shortcutContracts: string
+    shortcutContractsHint: string
+    shortcutInvoices: string
+    shortcutInvoicesHint: string
+    shortcutCustomers: string
+    shortcutCustomersHint: string
+    shortcutBrands: string
+    shortcutBrandsHint: string
+    shortcutInformation: string
+    shortcutInformationHint: string
+    shortcutAdmin: string
+    shortcutAdminHint: string
+    shortcutStatuses: string
+    shortcutStatusesHint: string
+    faqTitle: string
+    faqDurationQ: string
+    faqDurationA: string
+    faqKnowledgeQ: string
+    faqKnowledgeA: string
+    faqRefusalQ: string
+    faqRefusalA: string
+    faqFollowUpQ: string
+    faqFollowUpA: string
+    faqInUseQ: string
+    faqInUseA: string
+    faqFirstStepQ: string
+    faqFirstStepA: string
+    faqBrazilQ: string
+    faqBrazilA: string
+    faqIndividualQ: string
+    faqIndividualA: string
+    faqClassesQ: string
+    faqClassesA: string
+    aboutEyebrow: string
+    aboutTitle: string
+    aboutLead: string
+    highlightProtocol: string
+    highlightSupport: string
+    highlightCopies: string
+    whyTitle: string
+    whyLegalTitle: string
+    whyLegalBody: string
+    whyTrustTitle: string
+    whyTrustBody: string
+    whyValueTitle: string
+    whyValueBody: string
+    stepsTitle: string
+    stepViabilityTitle: string
+    stepViabilityBody: string
+    stepContractTitle: string
+    stepContractBody: string
+    stepFilingTitle: string
+    stepFilingBody: string
+    stepCertificateTitle: string
+    stepCertificateBody: string
+    contactTitle: string
+    contactCnpj: string
+    contactCities: string
+    visitSite: string
+    whatsapp: string
+    teamTitle: string
+    teamLead: string
+    gabrielName: string
+    gabrielRole: string
+    gabrielBio: string
+    lucasName: string
+    lucasRole: string
+    lucasBio: string
   }
   placeholder: {
     comingSoon: string
