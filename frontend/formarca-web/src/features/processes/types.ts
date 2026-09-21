@@ -8,6 +8,8 @@ export type ProcessRecord = {
   status: string
   processNumber?: string | null
   createdAt?: string
+  trademarkStatusTitle?: string | null
+  trademarkStatusTone?: string | null
 }
 
 export type ProcessListFilters = {

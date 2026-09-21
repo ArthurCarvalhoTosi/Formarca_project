@@ -161,7 +161,11 @@ public sealed record ProcessDto(
     string? ProcessNumber,
     DateTime CreatedAtUtc,
     string? BrandName = null,
-    string? ContractCode = null);
+    string? ContractCode = null,
+    Guid? TrademarkStatusId = null,
+    string? TrademarkStatusTitle = null,
+    string? TrademarkStatusTone = null,
+    DateTime? TrademarkStatusChangedAtUtc = null);
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ProcessFunnelStage

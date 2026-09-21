@@ -8,6 +8,7 @@ using Formarca.Domain.Contracts;
 using Formarca.Domain.IdentityAccess;
 using Formarca.Domain.Invoices;
 using Formarca.Domain.PlatformContent;
+using Formarca.Domain.Processes;
 using Formarca.Domain.Tenancy;
 using Formarca.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -77,6 +78,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<Invoice> Invoices => Set<Invoice>();
 
     public DbSet<ProcessEntity> Processes => Set<ProcessEntity>();
+
+    public DbSet<TrademarkStatus> TrademarkStatuses => Set<TrademarkStatus>();
+
+    public DbSet<ProcessStatusChange> ProcessStatusChanges => Set<ProcessStatusChange>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

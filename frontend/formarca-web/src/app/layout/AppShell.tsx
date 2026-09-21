@@ -190,6 +190,8 @@ export function AppShell() {
           selectedKeys={[selectedKey]}
           items={items}
           onClick={({ key }) => {
+            setCollapsed(true)
+            persistNavCollapsed(true)
             if (key === 'admin') {
               navigate('/admin/tenants')
               return

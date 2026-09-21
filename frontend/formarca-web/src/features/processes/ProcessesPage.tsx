@@ -22,6 +22,7 @@ import {
   type TableViewColumn,
 } from '@/shared/tableViews'
 import { BrandFunnelCard } from './BrandFunnelCard'
+import { TrademarkDashboard } from './TrademarkDashboard'
 import { processesApi } from './api'
 import {
   EMPTY_DASHBOARD_KPIS,
@@ -41,7 +42,25 @@ export function ProcessesPage() {
   const { isPlatformAdmin } = useAuth()
   const search = useListSearch(DEFAULT_FILTERS)
   const [params, setParams] = useSearchParams()
-  const view = params.get('view') === 'table' ? 'table' : 'cards'
+  const viewParam = params.get('view')
+  const view = viewParam === 'table' || viewParam === 'funnel' ? viewParam : 'status'
+  const setView = (next: string) => {
+    const query = new URLSearchParams(params)
+    if (next === 'status') query.delete('view')
+    else query.set('view', next)
+    setParams(query, { replace: true })
+  }
+  const viewSwitch = (
+    <Segmented
+      value={view}
+      onChange={(value) => setView(String(value))}
+      options={[
+        { label: t('trademark.viewStatus'), value: 'status' },
+        { label: t('trademark.viewFunnel'), value: 'funnel' },
+        { label: t('processes.viewTable'), value: 'table' },
+      ]}
+    />
+  )
 
   const dashboardFilters = {
     brandId: search.applied.brandId || undefined,
@@ -61,7 +80,7 @@ export function ProcessesPage() {
   const dashboardQuery = useQuery({
     queryKey: ['processes', 'dashboard', dashboardFilters],
     queryFn: () => processesApi.dashboard(dashboardFilters),
-    enabled: search.hasSearched && view === 'cards',
+    enabled: search.hasSearched && view === 'funnel',
   })
 
   const tableQuery = useQuery({
@@ -113,8 +132,9 @@ export function ProcessesPage() {
         key: 'status',
         dataIndex: 'status',
         title: t('processes.colStatus'),
-        render: (value: string) =>
-          value === 'Generated' ? t('processes.statusGenerated') : value,
+        render: (value: string, row: ProcessRecord) =>
+          row.trademarkStatusTitle ||
+          (value === 'Generated' ? t('processes.statusGenerated') : value),
       },
     ],
     [t, tenantsQuery.data],
@@ -123,6 +143,10 @@ export function ProcessesPage() {
   const tableViews = useTableViews({ tableKey: 'processes', columns })
   const kpis = dashboardQuery.data?.kpis ?? EMPTY_DASHBOARD_KPIS
   const activeQuery = view === 'table' ? tableQuery : dashboardQuery
+
+  if (view === 'status') {
+    return <TrademarkDashboard viewSwitch={viewSwitch} />
+  }
   const stageLabel = (stage: string) => {
     if (stage === 'Brand') return t('processes.stageBrand')
     if (stage === 'Contract') return t('processes.stageContract')
@@ -136,29 +160,13 @@ export function ProcessesPage() {
       title={t('processes.title')}
       description={t('processes.dashboardDescription')}
       search={search}
-      extra={
-        search.hasSearched ? (
-          <Segmented
-            value={view}
-            onChange={(value) => {
-              const next = new URLSearchParams(params)
-              if (value === 'table') next.set('view', 'table')
-              else next.delete('view')
-              setParams(next, { replace: true })
-            }}
-            options={[
-              { label: t('processes.viewCards'), value: 'cards' },
-              { label: t('processes.viewTable'), value: 'table' },
-            ]}
-          />
-        ) : null
-      }
+      extra={viewSwitch}
       views={view === 'table' && search.hasSearched ? <TableViewToolbar controller={tableViews} /> : null}
       loading={activeQuery.isLoading}
       error={activeQuery.error}
       errorTitle={t('processes.unavailable')}
       errorFallback={t('processes.loadError')}
-      skeletonCards={view === 'cards'}
+      skeletonCards={view === 'funnel'}
       chips={[
         ...csvChips(
           search.applied.brandId,
@@ -235,7 +243,7 @@ export function ProcessesPage() {
         </>
       }
     >
-      {view === 'cards' ? (
+      {view === 'funnel' ? (
         <>
           <div className="kpi-grid">
             <Card className="kpi-card">
