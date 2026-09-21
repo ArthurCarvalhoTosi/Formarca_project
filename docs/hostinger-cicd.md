@@ -1,6 +1,6 @@
 # Plano: hospedar Formarca na Hostinger (back, front, DB) + CI/CD Git
 
-Atualizado em 2026-09-15.
+Atualizado em 2026-09-21.
 
 Este documento é o runbook de deploy. A decisão de produto é **VPS Hostinger com Docker + GitHub Actions**. Hosting compartilhado, Cloud e o Git/Node.js do hPanel **não** servem o stack atual.
 
@@ -158,7 +158,7 @@ Hoje só existe `docker-compose.yml` com o SQL de desenvolvimento. Falta:
 |---|---|
 | `src/Formarca.Web/Dockerfile` | API multi-stage (`sdk` → `aspnet`) |
 | `src/Formarca.BackgroundRunner/Dockerfile` | worker |
-| `src/Formarca.DbMigrator/Dockerfile` | one-shot migrate + seed |
+| `src/Formarca.DbMigrator/Dockerfile` | one-shot: `Database.Migrate()` + seed. Não executa os `.sql` |
 | `frontend/formarca-web/Dockerfile` | `npm run build` → nginx |
 | `frontend/formarca-web/nginx.conf` | SPA `try_files` + proxy `/api` **ou** proxy só no Caddy |
 | `docker/Caddyfile` | TLS + rotas `/` e `/api` |
@@ -379,7 +379,11 @@ volumes:
 
 `docker-compose.yml` atual **permanece** só para SQL local. Não misturar senhas/PID de prod nele.
 
-Dependência `migrator` → `service_completed_successfully`: cada deploy reaplica migrations (idempotente) e re-roda o seeder (hoje o seeder é seguro para reexecução — permissões/admin só se não existirem). Confirmar isso antes de ir ao ar se o seeder ganhar dados destrutivos.
+O serviço `migrator` sobe o `Formarca.DbMigrator` e encerra: espera o SQL, `Database.Migrate()` e seed. `depends_on` com `service_completed_successfully` segura a API e o worker até isso terminar.
+
+O EF aplica só o que falta em `__EFMigrationsHistory`. Um segundo deploy não recria tabelas. O seeder pode rodar de novo: permissões e o admin só entram se ainda não existirem. Se o seed passar a apagar ou sobrescrever dado, isso precisa ser revisto antes do ar.
+
+Os `.sql` em `src/Formarca.DbMigrator/scripts/migrations/` **não** entram nesse container. O `add-migration.ps1` gera cada um como script idempotente do histórico até aquela migration, para revisão no git. Criar migration continua local (`dotnet tool restore` e o script); o CI/CD não chama `dotnet ef`.
 
 ---
 
@@ -519,7 +523,7 @@ A action `v1` (`hostinger/deploy-action`) está **obsoleta**. Usar `@v2`.
 
 `docker compose down -v` **apaga o banco**. Documentar isso no runbook operacional. Preferir `up -d --build` / recreate de serviços **exceto** o volume.
 
-Rollback de migration EF: não é automático. Ter os `.sql` em `src/Formarca.DbMigrator/scripts/migrations/` como referência humana. Em emergência, restore do `.bak`.
+Rollback de migration EF não é automático. Os `.sql` são referência humana do histórico até aquela migration; não são um `Down` e não são o caminho de deploy. Em emergência, restore do `.bak`.
 
 ---
 
