@@ -1,0 +1,33 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Deploy to Hostinger VPS
+        uses: hostinger/deploy-on-vps@v2
+        with:
+          api-key: ${{ secrets.HOSTINGER_API_KEY }}
+          virtual-machine: ${{ vars.HOSTINGER_VM_ID }}
+          project-name: formarca
+          docker-compose-path: docker-compose.prod.yml
+          environment-variables: |
+            DOMAIN=painel.formarca.com.br
+            HTTP_PORT=80
+            HTTPS_PORT=443
+            MSSQL_SA_PASSWORD=${{ secrets.MSSQL_SA_PASSWORD }}
+            DB_CONNECTION=${{ secrets.DB_CONNECTION }}
+            JWT_KEY=${{ secrets.JWT_KEY }}
+            AUTENTIQUE_API_KEY=${{ secrets.AUTENTIQUE_API_KEY }}
+            AUTENTIQUE_WEBHOOK_SECRET=${{ secrets.AUTENTIQUE_WEBHOOK_SECRET }}
+            AUTENTIQUE_SIGNER_EMAIL=${{ secrets.AUTENTIQUE_SIGNER_EMAIL }}
