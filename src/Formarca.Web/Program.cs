@@ -2,6 +2,7 @@ using Formarca.Application;
 using Formarca.Infrastructure;
 using Formarca.Web.Authorization;
 using Formarca.Web.Middleware;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -34,8 +35,23 @@ try
                 .AllowAnyHeader()
                 .AllowAnyMethod());
     });
+    if (!builder.Environment.IsDevelopment())
+    {
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            // API is only reachable from the Caddy container on the Docker network.
+            options.KnownNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
+    }
 
     var app = builder.Build();
+
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseForwardedHeaders();
+    }
 
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseSerilogRequestLogging();
@@ -44,10 +60,6 @@ try
     {
         app.MapOpenApi();
         app.UseCors("FrontendDev");
-    }
-    else
-    {
-        app.UseHttpsRedirection();
     }
     app.UseAuthentication();
     app.UseMiddleware<TenantResolutionMiddleware>();

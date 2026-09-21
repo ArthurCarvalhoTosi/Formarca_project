@@ -160,3 +160,6 @@ _NCrunch*
 # Frontend
 frontend/**/node_modules/
 frontend/**/dist/
+
+# Production compose secrets
+.env.prod

@@ -29,7 +29,7 @@ tests/
 - .NET 10 SDK
 - Node.js 20+ (frontend)
 - Docker (for SQL Server) or a local SQL Server instance
-- `dotnet tool install -g dotnet-ef` (for migrations)
+- `dotnet tool restore` (local `dotnet-ef` 10.0.11, for migrations)
 
 ## Full stack (local)
 
@@ -127,10 +127,11 @@ Includes a sample job that cleans expired refresh tokens.
 ## Add a migration (+ SQL export)
 
 ```powershell
-./src/Formarca.DbMigrator/scripts/add-migration.ps1 MyMigrationName
+dotnet tool restore
+./src/Formarca.DbMigrator/scripts/add-migration.ps1 "MyMigrationName"
 ```
 
-This creates the EF migration under `Formarca.Infrastructure/Persistence/Migrations` and an idempotent `.sql` under `src/Formarca.DbMigrator/scripts/migrations/`.
+The script runs `dotnet ef migrations add "MyMigrationName" --project src/Formarca.Infrastructure` (no startup project) and then writes an idempotent `.sql` under `src/Formarca.DbMigrator/scripts/migrations/`. The EF migration lands in `Formarca.Infrastructure/Persistence/Migrations`.
 
 DbMigrator applies schema via `Database.Migrate()`; the `.sql` files are for human review.
 

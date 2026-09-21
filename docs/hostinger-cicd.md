@@ -1,6 +1,6 @@
 # Plano: hospedar Formarca na Hostinger (back, front, DB) + CI/CD Git
 
-Atualizado em 2026-09-15.
+Atualizado em 2026-09-21.
 
 Este documento é o runbook de deploy. A decisão de produto é **VPS Hostinger com Docker + GitHub Actions**. Hosting compartilhado, Cloud e o Git/Node.js do hPanel **não** servem o stack atual.
 
@@ -55,7 +55,7 @@ Docs oficiais usadas neste plano:
                          │
               ┌──────────▼──────────┐
               │  Caddy (ou nginx)   │  TLS Let's Encrypt
-              │  painel.dominio.com │  (site atual fica no apex)
+              │  painel.formarca.com.br │  (site atual fica no apex)
               └───┬────────────┬────┘
                   │            │
              /    │            │  /api  /api/webhooks
@@ -120,59 +120,71 @@ SQL Server:
 
 ---
 
-## 5. DNS e TLS — mesmo domínio do site atual
+## 5. DNS e TLS — formarca.com.br
 
-O domínio **já na Hostinger** (site institucional no hPanel) é o que vamos usar. Não precisa comprar outro.
+Conferido na conta Hostinger em 2026-09-21:
 
-Um hostname (`formarca.com` ou `www`) só aponta para **um IP**. O site atual vive no IP do hosting compartilhado; o painel vai viver no IP do **VPS**. Por isso o apex continua no site, e o Formarca entra num **subdomínio**.
+| O que existe | Estado |
+|---|---|
+| Site | `formarca.com.br` no **Business Web Hosting** (`public_html`) |
+| DNS do site | apex `ALIAS` → `formarca.com.br.cdn.hstgr.net`; `www` `CNAME` para o mesmo CDN |
+| E-mail | `MX` Hostinger + SPF/DKIM/DMARC. **Não alterar.** |
+| Outro host | `bio` aponta para outro IP. Não usar. |
+| Domínio extra na conta | `grupofor.com.br` (não é o painel) |
+| VPS | **ainda não existe** |
+
+O apex e o `www` continuam no hosting do site. O painel entra em `painel.formarca.com.br`.
 
 | Host | Para onde aponta | O que serve |
 |---|---|---|
-| `dominio.com` e `www` | **não mexer** (A/CNAME atuais do site) | site que já está no ar |
-| `painel.dominio.com` | registro **A** → IP do VPS | SPA + API (`/api`) + webhook |
-| MX / e-mail | **não mexer** | caixas Hostinger, se existirem |
+| `formarca.com.br` e `www` | **não mexer** (ALIAS/CNAME do CDN) | site que já está no ar |
+| `painel.formarca.com.br` | registro **A** → IP do VPS | SPA + API (`/api`) + webhook |
+| MX / TXT de e-mail | **não mexer** | caixas Hostinger |
 
-Nameservers do domínio **continuam** na Hostinger. Só adicionar um A record em DNS ([Domain pointing](https://docs.hostinger.com/domains/domain-pointing) / [DNS Management](https://docs.hostinger.com/domains/dns-management)):
+Só adicionar, depois que o VPS existir ([DNS Management](https://docs.hostinger.com/domains/dns-management)):
 
 ```
 painel    A    <IP-do-VPS>
 ```
 
-Opcional: `www.painel` não precisa. SSL do site atual segue no hPanel. No VPS o Caddy emite Let's Encrypt **só** para `painel.dominio.com` (porta 80/443 abertas + A já propagado).
+SSL do site atual segue no CDN/hPanel. No VPS o Caddy emite Let's Encrypt **só** para `painel.formarca.com.br`.
 
-Same-origin continua valendo: o browser fala com `https://painel.dominio.com` e `https://painel.dominio.com/api/...`. Não criar `api.dominio.com` no começo (CORS, segundo certificado, segundo deploy).
+Same-origin: `https://painel.formarca.com.br` e `https://painel.formarca.com.br/api/...`. Não criar `api.formarca.com.br`.
 
-Autentique: webhook `https://painel.dominio.com/api/webhooks/autentique`.
+Autentique: webhook `https://painel.formarca.com.br/api/webhooks/autentique`.
 
-**Não fazer:** apontar o apex/`www` para o VPS. O site atual some desse endereço. Só faria sentido se o institucional for desligado ou migrado para o VPS também.
+**Não fazer:** trocar o ALIAS/CNAME do apex ou do `www` para o VPS. O site institucional sai do ar.
 
-Nome do subdomínio é livre (`painel`, `app`, `cliente`). Preferência deste plano: **`painel`**.
+Plano de VPS no catálogo da conta (preço em centavos na API, aqui em reais). O recomendado é **KVM 2** (2 vCPU, 8 GB, 100 GB):
+
+| Plano | RAM | 1º mês | depois / mês |
+|---|---|---|---|
+| KVM 1 | 4 GB | R$ 52,99 | R$ 87,99 |
+| **KVM 2** | **8 GB** | **R$ 70,99** | **R$ 108,99** |
+| KVM 4 | 16 GB | R$ 129,99 | R$ 196,99 |
+
+Anual do KVM 2: R$ 599,88 no primeiro ano, renovação R$ 1.067,88. A compra usa o cartão da conta. Não foi feita.
 
 ---
 
 ## 6. O que o repositório ainda não tem
 
-Hoje só existe `docker-compose.yml` com o SQL de desenvolvimento. Falta:
+Já estão no repo: Dockerfiles (API, worker, migrator, front), `frontend/formarca-web/nginx.conf`, `docker/Caddyfile`, `docker-compose.prod.yml`, `.dockerignore` e `.env.prod.example`. O compose local (`docker-compose.yml`) continua só com o SQL de desenvolvimento.
+
+Ainda falta:
 
 | Artefato | Função |
 |---|---|
-| `src/Formarca.Web/Dockerfile` | API multi-stage (`sdk` → `aspnet`) |
-| `src/Formarca.BackgroundRunner/Dockerfile` | worker |
-| `src/Formarca.DbMigrator/Dockerfile` | one-shot migrate + seed |
-| `frontend/formarca-web/Dockerfile` | `npm run build` → nginx |
-| `frontend/formarca-web/nginx.conf` | SPA `try_files` + proxy `/api` **ou** proxy só no Caddy |
-| `docker/Caddyfile` | TLS + rotas `/` e `/api` |
-| `docker-compose.prod.yml` | stack de produção (imagens, volumes, healthchecks, env) |
-| `.dockerignore` / `frontend/formarca-web/.dockerignore` | não mandar `bin/`, `node_modules/`, `.vs/` |
 | `.github/workflows/ci.yml` | PR: `dotnet test` + `npm ci` + `npm run build` |
 | `.github/workflows/deploy.yml` | `main`: CI + `hostinger/deploy-on-vps@v2` |
 | `.github/dependabot.yml` (opcional) | patches de Actions e NuGet/npm |
+| VPS KVM 2 + registro `painel` | ver §5; compra ainda não feita |
 
 Ajustes de **código** necessários antes do primeiro deploy (não são Docker, são comportamento de produção):
 
-1. **CORS** — `Program.cs` só libera `http://localhost:5173` e **só em Development**. Com same-origin via Caddy, produção não precisa de CORS. Se o front ficar em outro host, ler `Cors:Origins` da config.
-2. **HTTPS atrás de proxy** — habilitar `UseForwardedHeaders` (`X-Forwarded-For`, `X-Forwarded-Proto`) senão cookies/redirects quebram atrás do Caddy. `UseHttpsRedirection` no Kestrel interno (HTTP 8080) deve respeitar o proto encaminhado, ou ser desligado internamente.
-3. **Front** — `VITE_MOCK_AUTH=false`. `VITE_API_URL` vazio (same-origin: `fetch('/api/...')`). `env.ts` já faz `${apiUrl}/api/...`; string vazia vira `/api/...`.
+1. **CORS** — feito. `Program.cs` só libera `http://localhost:5173` em Development. Produção é same-origin via Caddy.
+2. **HTTPS atrás de proxy** — feito. Produção usa `UseForwardedHeaders`. A API não chama `UseHttpsRedirection`; o TLS termina no Caddy. A porta 8080 não é publicada.
+3. **Front** — o build de produção passa `VITE_MOCK_AUTH=false` e `VITE_API_URL` vazio. `env.ts` já faz `${apiUrl}/api/...`; string vazia vira `/api/...`.
 4. **JWT** — `Jwt:Key` com pelo menos 32 bytes aleatórios. Não reutilizar o de Development.
 5. **Seed** — `DatabaseSeeder` cria `admin@formarca.com` / `Formarca@Admin123!`. Trocar a senha **no primeiro login** (ou tornar a senha inicial configurável por env e obrigar rotação).
 6. **`ASPNETCORE_ENVIRONMENT=Production`**.
@@ -192,13 +204,17 @@ VITE_API_URL=          # vazio
 VITE_MOCK_AUTH=false
 ```
 
-Caddy (exemplo):
+Caddy (`docker/Caddyfile`; `DOMAIN=painel.formarca.com.br` em produção, `localhost` no teste local):
 
 ```
-painel.dominio.com {
-  encode gzip
-  reverse_proxy /api* api:8080
-  reverse_proxy /* front:80
+{$DOMAIN:localhost} {
+	encode gzip
+	handle /api* {
+		reverse_proxy api:8080
+	}
+	handle {
+		reverse_proxy front:80
+	}
 }
 ```
 
@@ -379,7 +395,11 @@ volumes:
 
 `docker-compose.yml` atual **permanece** só para SQL local. Não misturar senhas/PID de prod nele.
 
-Dependência `migrator` → `service_completed_successfully`: cada deploy reaplica migrations (idempotente) e re-roda o seeder (hoje o seeder é seguro para reexecução — permissões/admin só se não existirem). Confirmar isso antes de ir ao ar se o seeder ganhar dados destrutivos.
+O serviço `migrator` sobe o `Formarca.DbMigrator` e encerra: espera o SQL, `Database.Migrate()` e seed. `depends_on` com `service_completed_successfully` segura a API e o worker até isso terminar.
+
+O EF aplica só o que falta em `__EFMigrationsHistory`. Um segundo deploy não recria tabelas. O seeder pode rodar de novo: permissões e o admin só entram se ainda não existirem. Se o seed passar a apagar ou sobrescrever dado, isso precisa ser revisto antes do ar.
+
+Os `.sql` em `src/Formarca.DbMigrator/scripts/migrations/` **não** entram nesse container. O `add-migration.ps1` gera cada um como script idempotente do histórico até aquela migration, para revisão no git. Criar migration continua local (`dotnet tool restore` e o script); o CI/CD não chama `dotnet ef`.
 
 ---
 
@@ -519,7 +539,7 @@ A action `v1` (`hostinger/deploy-action`) está **obsoleta**. Usar `@v2`.
 
 `docker compose down -v` **apaga o banco**. Documentar isso no runbook operacional. Preferir `up -d --build` / recreate de serviços **exceto** o volume.
 
-Rollback de migration EF: não é automático. Ter os `.sql` em `src/Formarca.DbMigrator/scripts/migrations/` como referência humana. Em emergência, restore do `.bak`.
+Rollback de migration EF não é automático. Os `.sql` são referência humana do histórico até aquela migration; não são um `Down` e não são o caminho de deploy. Em emergência, restore do `.bak`.
 
 ---
 
@@ -528,11 +548,11 @@ Rollback de migration EF: não é automático. Ter os `.sql` em `src/Formarca.Db
 Depois do deploy:
 
 ```bash
-curl -I https://painel.dominio.com/
-curl https://painel.dominio.com/api/health
-curl https://painel.dominio.com/api/version
+curl -I https://painel.formarca.com.br/
+curl https://painel.formarca.com.br/api/health
+curl https://painel.formarca.com.br/api/version
 # site institucional continua no apex:
-curl -I https://dominio.com/
+curl -I https://formarca.com.br/
 ```
 
 - Caddy access log + API Serilog.
@@ -550,7 +570,7 @@ Só se o VPS ficar só para API+SQL e quiser o SPA no [Node.js Web App](https://
 - Root directory: `frontend/formarca-web`
 - Framework: Vite / React
 - Node 22, `npm run build`, output `dist`
-- Env: `VITE_API_URL=https://painel.dominio.com`, `VITE_MOCK_AUTH=false` (só neste plano B; no plano principal a URL é vazia / same-origin)
+- Env: `VITE_API_URL=https://painel.formarca.com.br`, `VITE_MOCK_AUTH=false` (só neste plano B; no plano principal a URL é vazia / same-origin)
 - CORS na API para a origem do SPA
 - Dois deploys, dois certificados, webhook continua no VPS
 
@@ -573,19 +593,19 @@ Checklist. Não pular.
 - [ ] VPS Docker, **8 GB**, snapshot ligado
 - [ ] SSH por chave
 - [ ] Firewall 22/80/443
-- [ ] **Não** alterar A/CNAME/MX do site atual (`dominio.com` / `www`)
+- [ ] **Não** alterar ALIAS/CNAME/MX do site atual (`formarca.com.br` / `www`)
 - [ ] A record `painel` → IP do VPS
-- [ ] Propagação: `dig painel.dominio.com` resolve o VPS
-- [ ] Caddyfile com `painel.dominio.com` (Let's Encrypt nesse host)
+- [ ] Propagação: `dig painel.formarca.com.br` resolve o VPS
+- [ ] Caddyfile com `painel.formarca.com.br` (Let's Encrypt nesse host)
 - [ ] Token API Hostinger gerado (guardar no GitHub, não no repo)
 - [ ] Anotar `HOSTINGER_VM_ID`
 
 ### B. Repo
 
-- [ ] Dockerfiles (API, worker, migrator, front)
-- [ ] `nginx.conf` SPA + `Caddyfile`
-- [ ] `docker-compose.prod.yml` + `.dockerignore`
-- [ ] Forwarded headers + CORS same-origin
+- [x] Dockerfiles (API, worker, migrator, front)
+- [x] `nginx.conf` SPA + `Caddyfile`
+- [x] `docker-compose.prod.yml` + `.dockerignore`
+- [x] Forwarded headers. TLS fica no Caddy; a API interna não redireciona HTTPS. CORS de produção não entra (same-origin)
 - [ ] Workflows `ci.yml` / `deploy.yml`
 - [ ] Secrets e variables no GitHub
 - [ ] Deploy key SSH se o repo for privado
@@ -638,11 +658,21 @@ O plano está implementado quando:
 
 ## 19. Próximo passo de implementação
 
-Quando for para código, nesta ordem:
+Feito: Dockerfiles, `docker-compose.prod.yml`, Caddy, nginx do SPA, forwarded headers.
 
-1. Dockerfiles + compose prod + Caddy (sobe local com `docker compose -f docker-compose.prod.yml up --build` apontando SQL Express).
-2. Ajustes `Program.cs` (forwarded headers) e build-args do Vite.
-3. Workflows GitHub.
-4. Secrets + VPS real.
+Segue nesta ordem:
+
+1. Confirmar a compra do **KVM 2** (mensal ou anual). A API cobra o cartão da conta; não comprar sem esse ok.
+2. Template Docker, firewall 22/80/443, snapshot, A record `painel` → IP do VPS.
+3. Workflows GitHub (`ci` no PR, `deploy` só em `main`) e secrets.
+4. Primeiro deploy e troca da senha do seed.
+
+Teste local, sem publicar o SQL:
+
+```powershell
+copy .env.prod.example .env.prod
+# edite as senhas; DOMAIN=localhost e HTTP_PORT=8088
+docker compose --env-file .env.prod -f docker-compose.prod.yml up --build
+```
 
 Não misturar o compose local de SQL (`Your_password123`, porta 1433 publicada) com o de produção.

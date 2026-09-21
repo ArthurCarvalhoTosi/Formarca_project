@@ -1,0 +1,109 @@
+name: formarca
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: Express
+      MSSQL_MEMORY_LIMIT_MB: "1400"
+    volumes:
+      - formarca-sql-data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  migrator:
+    build:
+      context: .
+      dockerfile: src/Formarca.DbMigrator/Dockerfile
+    environment:
+      ConnectionStrings__DefaultConnection: ${DB_CONNECTION}
+      ASPNETCORE_ENVIRONMENT: Production
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Formarca.Web/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: ${DB_CONNECTION}
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: Formarca
+      Jwt__Audience: Formarca
+      Autentique__ApiKey: ${AUTENTIQUE_API_KEY:-}
+      Autentique__WebhookSecret: ${AUTENTIQUE_WEBHOOK_SECRET:-}
+      Autentique__Sandbox: "false"
+      Autentique__FormarcaSignerEmail: ${AUTENTIQUE_SIGNER_EMAIL:-}
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/Formarca.BackgroundRunner/Dockerfile
+    environment:
+      ConnectionStrings__DefaultConnection: ${DB_CONNECTION}
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: Formarca
+      Jwt__Audience: Formarca
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  front:
+    build:
+      context: ./frontend/formarca-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+        VITE_MOCK_AUTH: "false"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+      - front
+    restart: unless-stopped
+
+volumes:
+  formarca-sql-data:
+  caddy-data:
+  caddy-config:
