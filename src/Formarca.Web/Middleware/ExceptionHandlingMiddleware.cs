@@ -6,6 +6,11 @@ namespace Formarca.Web.Middleware;
 
 public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public async Task InvokeAsync(HttpContext context)
     {
         try
@@ -39,9 +44,20 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
         context.Response.StatusCode = (int)status;
 
         object payload = exception is ValidationException validation
-            ? new { title, errors = validation.Errors }
-            : new { title, detail = status == HttpStatusCode.InternalServerError ? "An unexpected error occurred." : exception.Message };
+            ? new
+            {
+                title,
+                detail = string.Join(" ", validation.Errors.SelectMany(error => error.Value)),
+                errors = validation.Errors
+            }
+            : new
+            {
+                title,
+                detail = status == HttpStatusCode.InternalServerError
+                    ? "An unexpected error occurred."
+                    : exception.Message
+            };
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(payload, JsonOptions));
     }
 }

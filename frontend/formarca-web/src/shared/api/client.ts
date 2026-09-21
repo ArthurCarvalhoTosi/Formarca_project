@@ -1,7 +1,7 @@
 import { env } from '@/shared/config/env'
 import { isMockAccessToken } from '@/shared/auth/mockAuth'
 import { tokenStorage } from '@/shared/auth/tokenStorage'
-import { ApiError, type ApiRequestOptions } from './types'
+import { ApiError, parseApiErrorBody, type ApiRequestOptions } from './types'
 
 type UnauthorizedHandler = () => void
 
@@ -20,18 +20,6 @@ async function parseBody(response: Response): Promise<unknown> {
   } catch {
     return text
   }
-}
-
-function errorMessage(body: unknown, fallback: string): string {
-  if (typeof body === 'string' && body.trim()) return body
-  if (body && typeof body === 'object') {
-    const record = body as Record<string, unknown>
-    if (typeof record.title === 'string') return record.title
-    if (typeof record.message === 'string') return record.message
-    if (typeof record.detail === 'string') return record.detail
-    if (typeof record.error === 'string') return record.error
-  }
-  return fallback
 }
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -145,7 +133,7 @@ export async function apiRequest<T>(
     } else {
       onUnauthorized?.()
       const errBody = await parseBody(response)
-      throw new ApiError(401, errorMessage(errBody, 'Sessão expirada'), errBody)
+      throw new ApiError(401, parseApiErrorBody(errBody, 'Sessão expirada'), errBody)
     }
   }
 
@@ -161,10 +149,79 @@ export async function apiRequest<T>(
     }
     throw new ApiError(
       response.status,
-      errorMessage(parsed, `Erro HTTP ${response.status}`),
+      parseApiErrorBody(parsed, `Erro HTTP ${response.status}`),
       parsed,
     )
   }
 
   return parsed as T
+}
+
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null
+  const matched = header.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i)
+  return matched ? decodeURIComponent(matched[1].replaceAll('"', '')) : null
+}
+
+export async function apiFetchBlob(
+  path: string,
+  accept = '*/*',
+): Promise<{ blob: Blob; filename: string | null }> {
+  const requestHeaders: Record<string, string> = { Accept: accept }
+  const accessToken = tokenStorage.getAccessToken()
+  if (accessToken) {
+    requestHeaders.Authorization = `Bearer ${accessToken}`
+  }
+  const tenantId = tokenStorage.getActiveTenantId()
+  if (tenantId) {
+    requestHeaders['X-Tenant-Id'] = tenantId
+  }
+
+  const url = path.startsWith('http') ? path : `${env.apiUrl}${path}`
+  let response = await fetch(url, { headers: requestHeaders })
+
+  if (response.status === 401 && !isActiveMockSession()) {
+    const newToken = await getOrRefreshAccessToken()
+    if (newToken) {
+      requestHeaders.Authorization = `Bearer ${newToken}`
+      response = await fetch(url, { headers: requestHeaders })
+    } else {
+      onUnauthorized?.()
+      const errBody = await parseBody(response)
+      throw new ApiError(401, parseApiErrorBody(errBody, 'Sessão expirada'), errBody)
+    }
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 && !isActiveMockSession()) {
+      onUnauthorized?.()
+    }
+    const parsed = await parseBody(response)
+    throw new ApiError(
+      response.status,
+      parseApiErrorBody(parsed, `Erro HTTP ${response.status}`),
+      parsed,
+    )
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response.headers.get('Content-Disposition')),
+  }
+}
+
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const file = await apiFetchBlob(path)
+  triggerBlobDownload(file.blob, file.filename ?? filename)
 }

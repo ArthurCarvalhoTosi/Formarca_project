@@ -37,15 +37,26 @@ public static class AuthTokenIssuer
     public static async Task<IReadOnlyList<TenantSummaryDto>> GetUserTenantsAsync(
         IGenericRepository repository,
         Guid userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeNonActiveTenants = false)
     {
-        return await (
+        var query =
             from m in repository.Query<UserTenantMembership>()
             join t in repository.Query<Tenant>() on m.TenantId equals t.Id
             where m.UserId == userId && m.IsActive && !m.IsDeleted && !t.IsDeleted
-            orderby m.IsDefault descending, t.Name
-            select new TenantSummaryDto(t.Id, t.Name, t.Slug, m.IsDefault)
-        ).ToListAsync(cancellationToken);
+            select new { m, t };
+
+        if (!includeNonActiveTenants)
+        {
+            query = query.Where(x =>
+                x.t.Status == TenantStatus.Active || x.t.Status == TenantStatus.Onboarding);
+        }
+
+        return await query
+            .OrderByDescending(x => x.m.IsDefault)
+            .ThenBy(x => x.t.Name)
+            .Select(x => new TenantSummaryDto(x.t.Id, x.t.Name, x.t.Slug, x.m.IsDefault, x.t.Status.ToString()))
+            .ToListAsync(cancellationToken);
     }
 
     public static async Task<IReadOnlyList<string>> ResolvePermissionsAsync(
@@ -83,53 +94,110 @@ public static class AuthTokenIssuer
         ).Distinct().ToListAsync(cancellationToken);
     }
 
+    private static readonly string[] TenantAdminPermissionCodes =
+    [
+        PermissionCodes.UsersRead, PermissionCodes.UsersManage,
+        PermissionCodes.GroupsRead, PermissionCodes.GroupsManage,
+        PermissionCodes.ProcessesRead, PermissionCodes.ProcessesManage,
+        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
+        PermissionCodes.BrandsRead,
+        PermissionCodes.ContractsRead, PermissionCodes.ContractsSign,
+        PermissionCodes.InvoicesRead, PermissionCodes.InvoicesPay
+    ];
+
+    private static readonly string[] ClientUserPermissionCodes =
+    [
+        PermissionCodes.ProcessesRead,
+        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
+        PermissionCodes.BrandsRead,
+        PermissionCodes.ContractsRead,
+        PermissionCodes.InvoicesRead
+    ];
+
+    private static readonly string[] ClientOnboardingPermissionCodes =
+    [
+        PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
+        PermissionCodes.ContractsRead, PermissionCodes.ContractsSign,
+        PermissionCodes.InvoicesRead, PermissionCodes.InvoicesPay
+    ];
+
     public static async Task EnsureDefaultTenantGroupsAsync(
         IGenericRepository repository,
         Guid tenantId,
         CancellationToken cancellationToken)
     {
-        var existing = await repository.Query<Group>()
-            .Where(g => g.TenantId == tenantId && !g.IsDeleted)
-            .Select(g => g.Name)
-            .ToListAsync(cancellationToken);
-
         var permissions = await repository.Query<Permission>()
             .Where(p => !p.IsDeleted)
             .ToDictionaryAsync(p => p.Code, p => p.Id, cancellationToken);
 
-        if (!existing.Contains(DefaultGroupNames.TenantAdmins))
+        await EnsureGroupWithPermissionsAsync(
+            repository,
+            tenantId,
+            DefaultGroupNames.TenantAdmins,
+            "Tenant administrators",
+            TenantAdminPermissionCodes,
+            permissions,
+            cancellationToken);
+
+        await EnsureGroupWithPermissionsAsync(
+            repository,
+            tenantId,
+            DefaultGroupNames.ClientUsers,
+            "Client users",
+            ClientUserPermissionCodes,
+            permissions,
+            cancellationToken);
+
+        await EnsureGroupWithPermissionsAsync(
+            repository,
+            tenantId,
+            DefaultGroupNames.ClientOnboarding,
+            "Client onboarding",
+            ClientOnboardingPermissionCodes,
+            permissions,
+            cancellationToken);
+    }
+
+    private static async Task EnsureGroupWithPermissionsAsync(
+        IGenericRepository repository,
+        Guid tenantId,
+        string name,
+        string description,
+        IReadOnlyList<string> permissionCodes,
+        IReadOnlyDictionary<string, Guid> permissions,
+        CancellationToken cancellationToken)
+    {
+        var group = await repository.FirstOrDefaultAsync<Group>(
+            g => g.TenantId == tenantId && g.Name == name && !g.IsDeleted, cancellationToken);
+
+        if (group is null)
         {
-            var admins = Group.Create(DefaultGroupNames.TenantAdmins, tenantId, "Tenant administrators");
-            repository.Add(admins);
-            await repository.CommitAsync(cancellationToken);
-
-            foreach (var code in new[]
-                     {
-                         PermissionCodes.UsersRead, PermissionCodes.UsersManage,
-                         PermissionCodes.GroupsRead, PermissionCodes.GroupsManage,
-                         PermissionCodes.ProcessesRead
-                     })
-            {
-                if (permissions.TryGetValue(code, out var permissionId))
-                {
-                    repository.Add(GroupPermission.Create(admins.Id, permissionId));
-                }
-            }
-
+            group = Group.Create(name, tenantId, description);
+            repository.Add(group);
             await repository.CommitAsync(cancellationToken);
         }
 
-        if (!existing.Contains(DefaultGroupNames.ClientUsers))
-        {
-            var clients = Group.Create(DefaultGroupNames.ClientUsers, tenantId, "Client users");
-            repository.Add(clients);
-            await repository.CommitAsync(cancellationToken);
+        var existingPermissionIds = await repository.Query<GroupPermission>()
+            .Where(gp => gp.GroupId == group.Id && !gp.IsDeleted)
+            .Select(gp => gp.PermissionId)
+            .ToListAsync(cancellationToken);
 
-            if (permissions.TryGetValue(PermissionCodes.ProcessesRead, out var permissionId))
+        var added = false;
+        foreach (var code in permissionCodes)
+        {
+            if (!permissions.TryGetValue(code, out var permissionId)
+                || existingPermissionIds.Contains(permissionId))
             {
-                repository.Add(GroupPermission.Create(clients.Id, permissionId));
-                await repository.CommitAsync(cancellationToken);
+                continue;
             }
+
+            repository.Add(GroupPermission.Create(group.Id, permissionId));
+            added = true;
+        }
+
+        if (added)
+        {
+            await repository.CommitAsync(cancellationToken);
         }
     }
 }

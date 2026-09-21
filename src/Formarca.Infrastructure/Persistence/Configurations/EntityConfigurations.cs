@@ -16,9 +16,31 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Slug).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.Email).HasMaxLength(256);
+        builder.Property(x => x.Phone).HasMaxLength(32);
         builder.Property(x => x.Document).HasMaxLength(32);
+        builder.Property(x => x.LegalRepresentativeName).HasMaxLength(200);
+        builder.Property(x => x.LegalRepresentativeDocument).HasMaxLength(32);
+        builder.Property(x => x.QuotedAmount).HasPrecision(18, 2);
+        builder.Property(x => x.BudgetNotes).HasMaxLength(4000);
         builder.HasIndex(x => x.Slug).IsUnique();
+        builder.HasIndex(x => x.Email)
+            .IsUnique()
+            .HasFilter("[Email] IS NOT NULL AND [IsDeleted] = 0");
+        builder.HasIndex(x => x.Document);
         builder.Ignore(x => x.DomainEvents);
+
+        builder.OwnsOne(x => x.Address, address =>
+        {
+            address.Property(a => a.ZipCode).HasMaxLength(8).HasColumnName("AddressZipCode");
+            address.Property(a => a.Street).HasMaxLength(200).HasColumnName("AddressStreet");
+            address.Property(a => a.Number).HasMaxLength(20).HasColumnName("AddressNumber");
+            address.Property(a => a.Complement).HasMaxLength(100).HasColumnName("AddressComplement");
+            address.Property(a => a.Neighborhood).HasMaxLength(100).HasColumnName("AddressNeighborhood");
+            address.Property(a => a.City).HasMaxLength(100).HasColumnName("AddressCity");
+            address.Property(a => a.State).HasMaxLength(2).HasColumnName("AddressState");
+        });
+        builder.Navigation(x => x.Address).IsRequired(false);
     }
 }
 
@@ -75,6 +97,23 @@ public sealed class UserTenantMembershipConfiguration : IEntityTypeConfiguration
         builder.HasKey(x => x.Id);
         builder.HasIndex(x => new { x.UserId, x.TenantId }).IsUnique();
         builder.HasIndex(x => x.TenantId);
+        builder.Ignore(x => x.DomainEvents);
+    }
+}
+
+public sealed class UserTableViewConfiguration : IEntityTypeConfiguration<UserTableView>
+{
+    public void Configure(EntityTypeBuilder<UserTableView> builder)
+    {
+        builder.ToTable("UserTableViews");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TableKey).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(UserTableView.NameMaxLength).IsRequired();
+        builder.Property(x => x.ColumnKeysJson).HasMaxLength(4000).IsRequired();
+        builder.HasIndex(x => new { x.UserId, x.TableKey, x.Name })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => new { x.UserId, x.TableKey });
         builder.Ignore(x => x.DomainEvents);
     }
 }

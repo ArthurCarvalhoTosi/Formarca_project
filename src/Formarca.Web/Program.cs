@@ -2,6 +2,7 @@ using Formarca.Application;
 using Formarca.Infrastructure;
 using Formarca.Web.Authorization;
 using Formarca.Web.Middleware;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -21,7 +22,11 @@ try
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddFormarcaAuthorization();
-    builder.Services.AddControllers();
+    builder.Services.AddControllers().AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
     builder.Services.AddOpenApi();
     builder.Services.AddCors(options =>
     {
@@ -30,8 +35,23 @@ try
                 .AllowAnyHeader()
                 .AllowAnyMethod());
     });
+    if (!builder.Environment.IsDevelopment())
+    {
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            // API is only reachable from the Caddy container on the Docker network.
+            options.KnownNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
+    }
 
     var app = builder.Build();
+
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseForwardedHeaders();
+    }
 
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseSerilogRequestLogging();
@@ -41,8 +61,6 @@ try
         app.MapOpenApi();
         app.UseCors("FrontendDev");
     }
-
-    app.UseHttpsRedirection();
     app.UseAuthentication();
     app.UseMiddleware<TenantResolutionMiddleware>();
     app.UseAuthorization();

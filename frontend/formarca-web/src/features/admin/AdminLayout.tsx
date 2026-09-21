@@ -1,18 +1,22 @@
 import { Menu } from 'antd'
 import type { MenuProps } from 'antd'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-
-const items: MenuProps['items'] = [
-  { key: 'tenants', label: 'Tenants' },
-  { key: 'users', label: 'Usuários' },
-  { key: 'groups', label: 'Grupos' },
-]
+import { useI18n } from '@/shared/i18n'
 
 export function AdminLayout() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { t } = useI18n()
 
   const selected = location.pathname.split('/')[2] ?? 'tenants'
+
+  const items: MenuProps['items'] = [
+    { key: 'tenants', label: t('admin.tenants') },
+    { key: 'users', label: t('admin.users') },
+    { key: 'groups', label: t('admin.groups') },
+    { key: 'invoice-settings', label: t('admin.invoiceSettings') },
+    { key: 'trademark-statuses', label: t('admin.trademarkStatuses') },
+  ]
 
   return (
     <div>

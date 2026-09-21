@@ -12,18 +12,12 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(Path.Combine(Directory.GetCurrentDirectory(), "../Formarca.Web"))
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddJsonFile("appsettings.Development.json", optional: true)
-            .AddEnvironmentVariables()
-            .Build();
-
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+        var connectionString = ResolveConnectionString(Directory.GetCurrentDirectory());
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlServer(connectionString)
+            .UseSqlServer(
+                connectionString,
+                sql => sql.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null))
             .Options;
 
         ITenantContext tenantContext = new TenantContext();
@@ -31,5 +25,55 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
         tenantContext.SetIgnoreSoftDeleteFilters(true);
 
         return new AppDbContext(options, tenantContext, new SystemClock());
+    }
+
+    private static string ResolveConnectionString(string startDirectory)
+    {
+        var fromEnvironment = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+        if (!string.IsNullOrWhiteSpace(fromEnvironment))
+        {
+            return fromEnvironment;
+        }
+
+        var repoRoot = FindRepoRoot(startDirectory);
+        return ReadConnectionString(Path.Combine(repoRoot, "src", "Formarca.DbMigrator"))
+            ?? ReadConnectionString(Path.Combine(repoRoot, "src", "Formarca.Web"))
+            ?? throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' is not configured. " +
+                "Set ConnectionStrings__DefaultConnection, or add it to " +
+                "src/Formarca.DbMigrator/appsettings.json or src/Formarca.Web/appsettings.json.");
+    }
+
+    private static string? ReadConnectionString(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return null;
+        }
+
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(directory)
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile("appsettings.Development.json", optional: true)
+            .Build();
+
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        return string.IsNullOrWhiteSpace(connectionString) ? null : connectionString;
+    }
+
+    private static string FindRepoRoot(string startDirectory)
+    {
+        var directory = new DirectoryInfo(startDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Formarca.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException($"Could not find Formarca.sln walking up from '{startDirectory}'.");
     }
 }

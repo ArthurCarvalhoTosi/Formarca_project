@@ -8,39 +8,42 @@ $ErrorActionPreference = "Stop"
 # scripts/ -> Formarca.DbMigrator/ -> src/ -> repo root
 $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 $infrastructure = Join-Path $root "src\Formarca.Infrastructure"
-$startup = Join-Path $root "src\Formarca.Web"
 $migrationsDir = Join-Path $PSScriptRoot "migrations"
 
 if (-not (Test-Path $migrationsDir)) {
     New-Item -ItemType Directory -Path $migrationsDir | Out-Null
 }
 
-Write-Host "Adding EF migration '$Name'..."
-dotnet ef migrations add $Name `
-    --project $infrastructure `
-    --startup-project $startup `
-    --output-dir Persistence/Migrations
+Push-Location $root
+try {
+    dotnet tool restore
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$migrationsPath = Join-Path $infrastructure "Persistence\Migrations"
-$migrationFile = Get-ChildItem -Path $migrationsPath -Filter "*_$Name.cs" |
-    Where-Object { $_.Name -notlike "*.Designer.cs" } |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
+    Write-Host "Adding EF migration '$Name'..."
+    dotnet ef migrations add $Name --project src/Formarca.Infrastructure
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-if (-not $migrationFile) {
-    throw "Could not find migration file for '$Name'."
+    $migrationsPath = Join-Path $infrastructure "Persistence\Migrations"
+    $migrationFile = Get-ChildItem -Path $migrationsPath -Filter "*_$Name.cs" |
+        Where-Object { $_.Name -notlike "*.Designer.cs" } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if (-not $migrationFile) {
+        throw "Could not find migration file for '$Name'."
+    }
+
+    $timestamp = $migrationFile.BaseName.Split("_")[0]
+    $sqlRelative = "src/Formarca.DbMigrator/scripts/migrations/${timestamp}_${Name}.sql"
+
+    Write-Host "Exporting SQL script to $sqlRelative ..."
+    dotnet ef migrations script --idempotent --project src/Formarca.Infrastructure --output $sqlRelative
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
-
-$timestamp = $migrationFile.BaseName.Split("_")[0]
-$sqlFile = Join-Path $migrationsDir "${timestamp}_${Name}.sql"
-
-Write-Host "Exporting SQL script to $sqlFile ..."
-dotnet ef migrations script `
-    --idempotent `
-    --project $infrastructure `
-    --startup-project $startup `
-    --output $sqlFile
+finally {
+    Pop-Location
+}
 
 Write-Host "Done."
 Write-Host "Migration: $($migrationFile.FullName)"
-Write-Host "SQL:       $sqlFile"
+Write-Host "SQL:       $(Join-Path $root $sqlRelative)"

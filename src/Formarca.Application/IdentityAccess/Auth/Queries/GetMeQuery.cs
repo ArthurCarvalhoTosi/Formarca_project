@@ -25,7 +25,8 @@ public sealed class GetMeQueryHandler(
         var user = await identity.FindByIdAsync(currentUser.UserId.Value, cancellationToken)
             ?? throw new NotFoundException("User not found.");
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(
+            repository, user.Id, cancellationToken, includeNonActiveTenants: user.IsPlatformAdmin);
         var permissions = await AuthTokenIssuer.ResolvePermissionsAsync(
             repository, user.Id, currentUser.TenantId, user.IsPlatformAdmin, cancellationToken);
 

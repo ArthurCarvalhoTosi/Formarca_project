@@ -1,5 +1,17 @@
 import { apiRequest } from '@/shared/api/client'
-import type { Group, PagedResult, Tenant, UserListItem } from './types'
+import { asPaged, paginate, type PagedResult } from '@/shared/api/types'
+import { env } from '@/shared/config/env'
+import {
+  mockApproveTenant,
+  mockListTenants,
+  mockRejectTenant,
+} from '@/features/registration/mockStore'
+import type { Group, Tenant, UserListItem } from './types'
+
+type ListPaging = {
+  page?: number
+  pageSize?: number
+}
 
 type BackendUser = {
   id: string
@@ -8,12 +20,6 @@ type BackendUser = {
   isPlatformAdmin?: boolean
   isActive?: boolean
   tenants?: { id: string }[]
-}
-
-function asList<T>(data: T[] | PagedResult<T> | null | undefined): T[] {
-  if (!data) return []
-  if (Array.isArray(data)) return data
-  return data.items ?? []
 }
 
 function mapUser(user: BackendUser): UserListItem {
@@ -28,24 +34,52 @@ function mapUser(user: BackendUser): UserListItem {
 }
 
 export const adminApi = {
-  async listTenants(): Promise<Tenant[]> {
+  async listTenants(paging: ListPaging = {}) {
+    if (env.mockAuth) {
+      return paginate<Tenant>(mockListTenants(), paging.page, paging.pageSize)
+    }
     const data = await apiRequest<Tenant[] | PagedResult<Tenant>>(
-      `/api/admin/tenants?page=1&pageSize=100`,
+      `/api/admin/tenants?page=${paging.page ?? 1}&pageSize=${paging.pageSize ?? 20}`,
     )
-    return asList(data)
+    return asPaged<Tenant>(data, paging.page, paging.pageSize)
   },
 
-  async listUsers(): Promise<UserListItem[]> {
+  async approveTenant(id: string, password: string): Promise<void> {
+    if (env.mockAuth) {
+      mockApproveTenant(id, password)
+      return
+    }
+    await apiRequest<void>(`/api/admin/tenants/${id}/approve`, {
+      method: 'POST',
+      body: { password },
+    })
+  },
+
+  async rejectTenant(id: string): Promise<void> {
+    if (env.mockAuth) {
+      mockRejectTenant(id)
+      return
+    }
+    await apiRequest<void>(`/api/admin/tenants/${id}/reject`, {
+      method: 'POST',
+    })
+  },
+
+  async listUsers(paging: ListPaging = {}) {
     const data = await apiRequest<BackendUser[] | PagedResult<BackendUser>>(
-      `/api/admin/users?page=1&pageSize=100`,
+      `/api/admin/users?page=${paging.page ?? 1}&pageSize=${paging.pageSize ?? 20}`,
     )
-    return asList(data).map(mapUser)
+    const paged = asPaged<BackendUser>(data, paging.page, paging.pageSize)
+    return {
+      ...paged,
+      items: paged.items.map(mapUser),
+    }
   },
 
-  async listGroups(): Promise<Group[]> {
+  async listGroups(paging: ListPaging = {}) {
     const data = await apiRequest<Group[] | PagedResult<Group>>(
-      '/api/admin/groups?page=1&pageSize=100',
+      `/api/admin/groups?page=${paging.page ?? 1}&pageSize=${paging.pageSize ?? 20}`,
     )
-    return asList(data)
+    return asPaged<Group>(data, paging.page, paging.pageSize)
   },
 }

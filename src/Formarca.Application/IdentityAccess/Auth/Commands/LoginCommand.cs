@@ -41,7 +41,8 @@ public sealed class LoginCommandHandler(
             throw new UnauthorizedAppException("Invalid email or password.");
         }
 
-        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(repository, user.Id, cancellationToken);
+        var tenants = await AuthTokenIssuer.GetUserTenantsAsync(
+            repository, user.Id, cancellationToken, includeNonActiveTenants: user.IsPlatformAdmin);
         Guid? tenantId = request.TenantId;
 
         if (tenantId is null)
@@ -56,7 +57,10 @@ public sealed class LoginCommandHandler(
         if (tenantId is not null)
         {
             var tenantExists = await repository.AnyAsync<Tenant>(
-                t => t.Id == tenantId && !t.IsDeleted && t.Status == TenantStatus.Active, cancellationToken);
+                t => t.Id == tenantId
+                    && !t.IsDeleted
+                    && (t.Status == TenantStatus.Active || t.Status == TenantStatus.Onboarding),
+                cancellationToken);
             if (!tenantExists && !user.IsPlatformAdmin)
             {
                 throw new ForbiddenException("Tenant is not available.");

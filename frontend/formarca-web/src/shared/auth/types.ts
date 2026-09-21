@@ -1,10 +1,19 @@
 export type PlatformRole = 'PlatformAdmin' | 'None' | string
 
+export type TenantStatus =
+  | 'Pending'
+  | 'Onboarding'
+  | 'Active'
+  | 'Inactive'
+  | 'Suspended'
+  | string
+
 export type TenantSummary = {
   id: string
   name: string
   slug?: string
   isDefault?: boolean
+  status?: TenantStatus
 }
 
 export type AuthUser = {

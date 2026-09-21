@@ -3,6 +3,7 @@ export type Tenant = {
   name: string
   slug?: string
   document?: string | null
+  email?: string | null
   status?: string
   createdAt?: string
 }
