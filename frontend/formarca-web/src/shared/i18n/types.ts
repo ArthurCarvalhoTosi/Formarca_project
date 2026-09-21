@@ -185,6 +185,7 @@ export type Dictionary = {
     rejectSuccess: string
     rejectFailed: string
     invoiceSettings: string
+    trademarkStatuses: string
     invoiceSettingsTitle: string
     invoiceSettingsDescription: string
     invoiceSettingsSaved: string
@@ -490,6 +491,89 @@ export type Dictionary = {
     stageContract: string
     stageInvoice: string
     stageProcess: string
+  }
+  trademark: {
+    dashboardTitle: string
+    dashboardDescription: string
+    viewStatus: string
+    viewFunnel: string
+    kpiTotal: string
+    kpiWithoutStatus: string
+    kpiAction: string
+    kpiPaused: string
+    kpiActive: string
+    kpiClosed: string
+    filterPhase: string
+    filterStatus: string
+    filterBrand: string
+    filterTenant: string
+    emptyTitle: string
+    emptyDescription: string
+    noResultsTitle: string
+    noResultsDescription: string
+    noStatus: string
+    noStatusHint: string
+    updatedAt: string
+    createdAt: string
+    openDetails: string
+    processNumber: string
+    contract: string
+    changeStatus: string
+    statusLabel: string
+    noteLabel: string
+    notePlaceholder: string
+    saveStatus: string
+    statusSaved: string
+    statusSaveFailed: string
+    historyTitle: string
+    historyEmpty: string
+    historyFrom: string
+    loadError: string
+    unavailable: string
+    phases: {
+      Filing: string
+      Opposition: string
+      Merit: string
+      Decision: string
+      Appeal: string
+      Grant: string
+      Renewal: string
+      Extinction: string
+    }
+    tones: {
+      Neutral: string
+      Progress: string
+      Attention: string
+      Success: string
+      Danger: string
+      Paused: string
+    }
+    adminTitle: string
+    adminDescription: string
+    colOrder: string
+    colTitle: string
+    colPhase: string
+    colTone: string
+    colActive: string
+    add: string
+    editTitle: string
+    createTitle: string
+    fieldTitle: string
+    fieldDescription: string
+    fieldPhase: string
+    fieldTone: string
+    fieldActive: string
+    fieldOrder: string
+    saved: string
+    saveFailed: string
+    deleted: string
+    deleteFailed: string
+    moveUp: string
+    moveDown: string
+    reorderFailed: string
+    active: string
+    inactive: string
+    loadCatalogError: string
   }
   listSearch: {
     title: string

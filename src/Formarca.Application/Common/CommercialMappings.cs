@@ -3,6 +3,7 @@ using Formarca.Application.Common.Models;
 using Formarca.Domain.Brands;
 using Formarca.Domain.Contracts;
 using Formarca.Domain.Invoices;
+using Formarca.Domain.Processes;
 using Formarca.Domain.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using ProcessEntity = Formarca.Domain.Processes.Process;
@@ -93,7 +94,8 @@ internal static class CommercialMappings
     public static ProcessDto ToDto(
         this ProcessEntity process,
         string? brandName = null,
-        string? contractCode = null) =>
+        string? contractCode = null,
+        TrademarkStatus? trademarkStatus = null) =>
         new(
             process.Id,
             process.TenantId,
@@ -103,7 +105,11 @@ internal static class CommercialMappings
             process.ProcessNumber,
             process.CreatedAtUtc,
             brandName,
-            contractCode);
+            contractCode,
+            process.TrademarkStatusId,
+            trademarkStatus?.Title,
+            trademarkStatus?.Tone.ToString(),
+            process.TrademarkStatusChangedAtUtc);
 
     public static async Task<IReadOnlyList<BrandDto>> MapAsync(
         IGenericRepository repository,
@@ -200,11 +206,28 @@ internal static class CommercialMappings
                 .Where(c => contractIds.Contains(c.Id))
                 .ToDictionaryAsync(c => c.Id, c => c.Code, cancellationToken);
 
+        var statusIds = items
+            .Where(p => p.TrademarkStatusId.HasValue)
+            .Select(p => p.TrademarkStatusId!.Value)
+            .Distinct()
+            .ToList();
+        var trademarkStatuses = statusIds.Count == 0
+            ? new Dictionary<Guid, TrademarkStatus>()
+            : await repository.Query<TrademarkStatus>()
+                .Where(s => statusIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, cancellationToken);
+
         return items.Select(process =>
         {
             brandNames.TryGetValue(process.BrandId, out var brandName);
             contractCodes.TryGetValue(process.ContractId, out var contractCode);
-            return process.ToDto(brandName, contractCode);
+            TrademarkStatus? trademarkStatus = null;
+            if (process.TrademarkStatusId is Guid statusId)
+            {
+                trademarkStatuses.TryGetValue(statusId, out trademarkStatus);
+            }
+
+            return process.ToDto(brandName, contractCode, trademarkStatus);
         }).ToList();
     }
 

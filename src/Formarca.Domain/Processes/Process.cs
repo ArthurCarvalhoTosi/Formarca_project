@@ -19,6 +19,10 @@ public class Process : Entity, ITenantScoped
 
     public string? ProcessNumber { get; private set; }
 
+    public Guid? TrademarkStatusId { get; private set; }
+
+    public DateTime? TrademarkStatusChangedAtUtc { get; private set; }
+
     public static Process CreateGenerated(Guid tenantId, Guid brandId, Guid contractId)
     {
         if (tenantId == Guid.Empty)
@@ -43,5 +47,34 @@ public class Process : Entity, ITenantScoped
             ContractId = contractId,
             Status = ProcessStatus.Generated
         };
+    }
+
+    public void AssignTrademarkStatus(Guid trademarkStatusId)
+    {
+        if (trademarkStatusId == Guid.Empty)
+        {
+            throw new ArgumentException("Status is required.", nameof(trademarkStatusId));
+        }
+
+        if (TrademarkStatusId == trademarkStatusId)
+        {
+            throw new InvalidOperationException("Process already has this status.");
+        }
+
+        TrademarkStatusId = trademarkStatusId;
+        TrademarkStatusChangedAtUtc = Clock.Current.UtcNow;
+        MarkUpdated();
+    }
+
+    public void SetProcessNumber(string? processNumber)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(processNumber) ? null : processNumber.Trim();
+        if (trimmed is { Length: > 64 })
+        {
+            throw new ArgumentException("Process number is too long.", nameof(processNumber));
+        }
+
+        ProcessNumber = trimmed;
+        MarkUpdated();
     }
 }

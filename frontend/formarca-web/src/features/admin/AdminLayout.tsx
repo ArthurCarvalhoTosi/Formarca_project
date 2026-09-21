@@ -15,6 +15,7 @@ export function AdminLayout() {
     { key: 'users', label: t('admin.users') },
     { key: 'groups', label: t('admin.groups') },
     { key: 'invoice-settings', label: t('admin.invoiceSettings') },
+    { key: 'trademark-statuses', label: t('admin.trademarkStatuses') },
   ]
 
   return (

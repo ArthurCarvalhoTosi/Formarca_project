@@ -98,7 +98,7 @@ public static class AuthTokenIssuer
     [
         PermissionCodes.UsersRead, PermissionCodes.UsersManage,
         PermissionCodes.GroupsRead, PermissionCodes.GroupsManage,
-        PermissionCodes.ProcessesRead,
+        PermissionCodes.ProcessesRead, PermissionCodes.ProcessesManage,
         PermissionCodes.RegistrationsRead, PermissionCodes.RegistrationsManage,
         PermissionCodes.BrandsRead,
         PermissionCodes.ContractsRead, PermissionCodes.ContractsSign,

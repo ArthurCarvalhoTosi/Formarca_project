@@ -15,6 +15,7 @@ import { ContractDetailPage } from '@/features/contracts/ContractDetailPage'
 import { ContractsPage } from '@/features/contracts/ContractsPage'
 import { CustomerFormPage } from '@/features/customers/CustomerFormPage'
 import { CustomersPage } from '@/features/customers/CustomersPage'
+import { TrademarkStatusesPage } from '@/features/admin/TrademarkStatusesPage'
 import { InvoiceSettingsPage } from '@/features/invoices/InvoiceSettingsPage'
 import { InvoicesPage } from '@/features/invoices/InvoicesPage'
 import { ProcessesPage } from '@/features/processes/ProcessesPage'
@@ -112,6 +113,7 @@ function AppRoutes() {
               <Route path="users" element={<UsersPage />} />
               <Route path="groups" element={<GroupsPage />} />
               <Route path="invoice-settings" element={<InvoiceSettingsPage />} />
+              <Route path="trademark-statuses" element={<TrademarkStatusesPage />} />
             </Route>
           </Route>
         </Route>

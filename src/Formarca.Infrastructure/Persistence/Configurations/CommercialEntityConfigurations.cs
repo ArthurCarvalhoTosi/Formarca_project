@@ -135,9 +135,57 @@ public sealed class ProcessConfiguration : IEntityTypeConfiguration<ProcessEntit
         builder.Property(x => x.ProcessNumber).HasMaxLength(64);
         builder.HasIndex(x => x.TenantId);
         builder.HasIndex(x => x.BrandId);
+        builder.HasIndex(x => x.TrademarkStatusId);
         builder.HasIndex(x => x.ContractId)
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");
+        builder.HasOne<TrademarkStatus>()
+            .WithMany()
+            .HasForeignKey(x => x.TrademarkStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.Ignore(x => x.DomainEvents);
+    }
+}
+
+public sealed class TrademarkStatusConfiguration : IEntityTypeConfiguration<TrademarkStatus>
+{
+    public void Configure(EntityTypeBuilder<TrademarkStatus> builder)
+    {
+        builder.ToTable("TrademarkStatuses");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Code).HasMaxLength(TrademarkStatus.CodeMaxLength).IsRequired();
+        builder.Property(x => x.Title).HasMaxLength(TrademarkStatus.TitleMaxLength).IsRequired();
+        builder.Property(x => x.Description).HasMaxLength(TrademarkStatus.DescriptionMaxLength).IsRequired();
+        builder.HasIndex(x => x.Code)
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => x.SortOrder);
+        builder.Ignore(x => x.DomainEvents);
+    }
+}
+
+public sealed class ProcessStatusChangeConfiguration : IEntityTypeConfiguration<ProcessStatusChange>
+{
+    public void Configure(EntityTypeBuilder<ProcessStatusChange> builder)
+    {
+        builder.ToTable("ProcessStatusChanges");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Note).HasMaxLength(ProcessStatusChange.NoteMaxLength);
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => x.ProcessId);
+        builder.HasIndex(x => x.ToStatusId);
+        builder.HasOne<ProcessEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ProcessId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<TrademarkStatus>()
+            .WithMany()
+            .HasForeignKey(x => x.ToStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<TrademarkStatus>()
+            .WithMany()
+            .HasForeignKey(x => x.FromStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
         builder.Ignore(x => x.DomainEvents);
     }
 }

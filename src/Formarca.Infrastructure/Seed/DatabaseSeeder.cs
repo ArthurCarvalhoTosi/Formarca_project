@@ -1,5 +1,6 @@
 using Formarca.Domain.Common;
 using Formarca.Domain.IdentityAccess;
+using Formarca.Domain.Processes;
 using Formarca.Infrastructure.Identity;
 using Formarca.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -28,6 +29,7 @@ public static class DatabaseSeeder
 
         await SeedPermissionsAsync(db, cancellationToken);
         await SeedInvoiceSettingsAsync(db, cancellationToken);
+        await SeedTrademarkStatusesAsync(db, cancellationToken);
         await SeedPlatformAdminAsync(userManager, logger, cancellationToken);
         await SeedDemoTenantAsync(db, repository, userManager, cancellationToken);
         await SeedDefaultGroupsForExistingTenantsAsync(db, repository, cancellationToken);
@@ -58,6 +60,37 @@ public static class DatabaseSeeder
 
         db.InvoiceSettings.Add(Domain.Invoices.InvoiceSettings.CreateDefault());
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task SeedTrademarkStatusesAsync(AppDbContext db, CancellationToken cancellationToken)
+    {
+        var existing = await db.TrademarkStatuses
+            .IgnoreQueryFilters()
+            .Select(status => status.Code)
+            .ToListAsync(cancellationToken);
+
+        var added = false;
+        foreach (var definition in TrademarkStatusCatalog.All)
+        {
+            if (existing.Contains(definition.Code))
+            {
+                continue;
+            }
+
+            db.TrademarkStatuses.Add(TrademarkStatus.Create(
+                definition.Code,
+                definition.Title,
+                definition.Description,
+                definition.SortOrder,
+                definition.Phase,
+                definition.Tone));
+            added = true;
+        }
+
+        if (added)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task SeedPlatformAdminAsync(

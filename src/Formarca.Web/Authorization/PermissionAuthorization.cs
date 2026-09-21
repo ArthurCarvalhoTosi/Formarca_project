@@ -50,6 +50,7 @@ public static class AuthorizationExtensions
             .AddPolicy(PermissionCodes.RegistrationsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.RegistrationsRead)))
             .AddPolicy(PermissionCodes.RegistrationsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.RegistrationsManage)))
             .AddPolicy(PermissionCodes.ProcessesRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.ProcessesRead)))
+            .AddPolicy(PermissionCodes.ProcessesManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.ProcessesManage)))
             .AddPolicy(PermissionCodes.BrandsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.BrandsRead)))
             .AddPolicy(PermissionCodes.BrandsManage, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.BrandsManage)))
             .AddPolicy(PermissionCodes.ContractsRead, p => p.AddRequirements(new PermissionRequirement(PermissionCodes.ContractsRead)))
