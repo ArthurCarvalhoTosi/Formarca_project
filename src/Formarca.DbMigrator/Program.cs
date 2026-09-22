@@ -2,6 +2,7 @@
 using Formarca.Infrastructure;
 using Formarca.Infrastructure.Persistence;
 using Formarca.Infrastructure.Seed;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -88,6 +89,11 @@ static async Task WaitForDatabaseAsync(AppDbContext db)
                 return;
             }
         }
+        catch (Exception ex) when (IsDatabaseMissing(ex))
+        {
+            Log.Information("SQL Server is up. Database Formarca does not exist yet; Migrate will create it.");
+            return;
+        }
         catch (Exception ex)
         {
             Log.Warning(
@@ -105,4 +111,17 @@ static async Task WaitForDatabaseAsync(AppDbContext db)
 
         await Task.Delay(TimeSpan.FromSeconds(5));
     }
+}
+
+static bool IsDatabaseMissing(Exception exception)
+{
+    for (var current = exception; current is not null; current = current.InnerException)
+    {
+        if (current is SqlException sql && sql.Number == 4060)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
