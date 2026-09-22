@@ -79,19 +79,20 @@ finally
 
 static async Task WaitForDatabaseAsync(AppDbContext db)
 {
+    var connectionString = db.Database.GetConnectionString()
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+    var master = new SqlConnectionStringBuilder(connectionString)
+    {
+        InitialCatalog = "master"
+    }.ConnectionString;
+
     const int maxAttempts = 40;
     for (var attempt = 1; attempt <= maxAttempts; attempt++)
     {
         try
         {
-            if (await db.Database.CanConnectAsync())
-            {
-                return;
-            }
-        }
-        catch (Exception ex) when (IsDatabaseMissing(ex))
-        {
-            Log.Information("SQL Server is up. Database Formarca does not exist yet; Migrate will create it.");
+            await using var connection = new SqlConnection(master);
+            await connection.OpenAsync();
             return;
         }
         catch (Exception ex)
@@ -111,17 +112,4 @@ static async Task WaitForDatabaseAsync(AppDbContext db)
 
         await Task.Delay(TimeSpan.FromSeconds(5));
     }
-}
-
-static bool IsDatabaseMissing(Exception exception)
-{
-    for (var current = exception; current is not null; current = current.InnerException)
-    {
-        if (current is SqlException sql && sql.Number == 4060)
-        {
-            return true;
-        }
-    }
-
-    return false;
 }
