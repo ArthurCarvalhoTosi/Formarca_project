@@ -78,7 +78,7 @@ finally
 
 static async Task WaitForDatabaseAsync(AppDbContext db)
 {
-    const int maxAttempts = 10;
+    const int maxAttempts = 40;
     for (var attempt = 1; attempt <= maxAttempts; attempt++)
     {
         try
@@ -103,6 +103,6 @@ static async Task WaitForDatabaseAsync(AppDbContext db)
                 "Could not connect to SQL Server. Start it with `docker compose up -d` and wait until the container is healthy, then retry.");
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(3));
+        await Task.Delay(TimeSpan.FromSeconds(5));
     }
 }
