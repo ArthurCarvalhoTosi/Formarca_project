@@ -376,12 +376,13 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
