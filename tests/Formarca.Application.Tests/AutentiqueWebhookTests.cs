@@ -194,6 +194,7 @@ public class AutentiqueWebhookTests
             new FakeContractDocumentGenerator(),
             autentique).Handle(new IssueContractCommand(contract.Id), CancellationToken.None);
 
+        autentique.Downloads.Clear();
         return new Fixture(repository, contract, autentique);
     }
 
