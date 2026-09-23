@@ -8,10 +8,12 @@ import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import type { Dictionary } from '@/shared/i18n'
 import {
+  activeSinceFromRecentDays,
   csvChips,
   joinCsv,
   ListEmptyState,
   ListSearchLayout,
+  RECENT_ACTIVE_DAYS,
   splitCsv,
   toTablePagination,
   useListSearch,
@@ -27,6 +29,12 @@ import type { CustomerListItem } from './types'
 const DEFAULT_FILTERS = {
   q: '',
   status: '',
+  recentDays: '',
+}
+
+const OPEN_FILTERS = {
+  status: 'Pending,Onboarding,Suspended,Active',
+  recentDays: String(RECENT_ACTIVE_DAYS),
 }
 
 function statusColor(status?: string) {
@@ -54,32 +62,26 @@ function statusLabel(status: string | undefined, dict: Dictionary): string {
   return status
 }
 
-function matchesSearch(row: CustomerListItem, query: string, statusCsv: string): boolean {
-  const statuses = splitCsv(statusCsv)
-  if (statuses.length > 0 && !statuses.includes(row.status ?? '')) return false
-  const needle = query.trim().toLowerCase()
-  if (!needle) return true
-  const digits = needle.replace(/\D/g, '')
-  return [row.name, row.document, row.email, row.slug].some((value) => {
-    if (!value) return false
-    if (value.toLowerCase().includes(needle)) return true
-    return Boolean(digits) && value.replace(/\D/g, '').includes(digits)
-  })
-}
-
 export function CustomersPage() {
   const { t, dict } = useI18n()
   const navigate = useNavigate()
   const { isPlatformAdmin, hasPermission } = useAuth()
-  const search = useListSearch(DEFAULT_FILTERS)
+  const search = useListSearch(DEFAULT_FILTERS, {
+    autoSearch: true,
+    initialFilters: isPlatformAdmin ? OPEN_FILTERS : undefined,
+  })
   const canCreate = hasPermission('registrations.manage')
 
+  const activeSince = activeSinceFromRecentDays(search.applied.recentDays)
   const query = useQuery({
-    queryKey: ['customers', isPlatformAdmin, search.page, search.pageSize, search.applied],
+    queryKey: ['customers', isPlatformAdmin, search.page, search.pageSize, search.applied, activeSince],
     queryFn: () =>
       customersApi.list(isPlatformAdmin, {
         page: search.page,
         pageSize: search.pageSize,
+        q: search.applied.q || undefined,
+        status: isPlatformAdmin ? search.applied.status || undefined : undefined,
+        activeSince: isPlatformAdmin ? activeSince : undefined,
       }),
     enabled: search.hasSearched,
   })
@@ -121,14 +123,17 @@ export function CustomersPage() {
   )
 
   const tableViews = useTableViews({ tableKey: 'customers', columns })
-  const items = useMemo(() => {
-    const rows = query.data?.items ?? []
-    return rows.filter((row) => matchesSearch(row, search.applied.q, search.applied.status))
-  }, [query.data?.items, search.applied.q, search.applied.status])
+  const items = query.data?.items ?? []
 
   const chips = [
     search.applied.q
       ? { key: 'q', label: `${t('common.search')}: ${search.applied.q}` }
+      : null,
+    search.applied.recentDays
+      ? {
+          key: 'recentDays',
+          label: t('listSearch.recentActive', { days: search.applied.recentDays }),
+        }
       : null,
     ...csvChips(
       search.applied.status,

@@ -21,6 +21,7 @@ export type BrandListFilters = {
   name?: string
   inpiClass?: string | number
   tenantId?: string
+  createdFrom?: string
   page?: number
   pageSize?: number
 }

@@ -26,6 +26,7 @@ public sealed class InvoicesController(ISender sender) : ControllerBase
         [FromQuery] string[]? tenantIds,
         [FromQuery] Guid? contractId,
         [FromQuery] string[]? status,
+        [FromQuery] DateTime? activeSince,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
@@ -36,7 +37,8 @@ public sealed class InvoicesController(ISender sender) : ControllerBase
                 contractId,
                 QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<InvoiceStatus>(status)),
                 page,
-                pageSize),
+                pageSize,
+                activeSince),
             cancellationToken));
 
     [Authorize(Policy = PermissionCodes.InvoicesRead)]

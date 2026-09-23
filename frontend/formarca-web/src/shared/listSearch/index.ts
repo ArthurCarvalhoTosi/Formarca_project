@@ -9,5 +9,6 @@ export {
   toTablePagination,
 } from './pagination'
 export { csvChips, joinCsv, splitCsv } from './csv'
+export { RECENT_ACTIVE_DAYS, activeSinceFromRecentDays, recentActiveSince } from './recentWindow'
 export { useListSearch } from './useListSearch'
-export type { FilterChip, SearchFilters, UseListSearchResult } from './useListSearch'
+export type { FilterChip, ListSearchOptions, SearchFilters, UseListSearchResult } from './useListSearch'

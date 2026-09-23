@@ -1,3 +1,4 @@
+using Formarca.Application.Common;
 using Formarca.Application.Common.Models;
 using Formarca.Application.Tenancy.Commands;
 using Formarca.Application.Tenancy.Queries;
@@ -21,10 +22,20 @@ public sealed class TenantsController(ISender sender) : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> List(
+        [FromQuery] string? q,
+        [FromQuery] string[]? status,
+        [FromQuery] DateTime? activeSince,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
-        => Ok(await sender.Send(new ListTenantsQuery(page, pageSize), cancellationToken));
+        => Ok(await sender.Send(
+            new ListTenantsQuery(
+                page,
+                pageSize,
+                QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<TenantStatus>(status)),
+                activeSince,
+                q),
+            cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken)

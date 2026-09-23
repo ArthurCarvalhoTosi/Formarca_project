@@ -8,10 +8,12 @@ import { asList } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import {
+  activeSinceFromRecentDays,
   csvChips,
   joinCsv,
   ListEmptyState,
   ListSearchLayout,
+  RECENT_ACTIVE_DAYS,
   splitCsv,
   toTablePagination,
   useListSearch,
@@ -30,6 +32,7 @@ const DEFAULT_FILTERS = {
   name: '',
   inpiClass: '',
   tenantId: '',
+  recentDays: '',
 }
 
 export function BrandsPage() {
@@ -38,7 +41,10 @@ export function BrandsPage() {
   const navigate = useNavigate()
   const { isPlatformAdmin, hasPermission } = useAuth()
   const queryClient = useQueryClient()
-  const search = useListSearch(DEFAULT_FILTERS)
+  const search = useListSearch(DEFAULT_FILTERS, {
+    autoSearch: true,
+    initialFilters: { recentDays: String(RECENT_ACTIVE_DAYS) },
+  })
   const canCreate = hasPermission('brands.manage')
   const canPreIssue = hasPermission('contracts.manage')
 
@@ -46,6 +52,7 @@ export function BrandsPage() {
     name: search.applied.name.trim() || undefined,
     inpiClass: search.applied.inpiClass || undefined,
     tenantId: isPlatformAdmin ? search.applied.tenantId || undefined : undefined,
+    createdFrom: activeSinceFromRecentDays(search.applied.recentDays),
     page: search.page,
     pageSize: search.pageSize,
   }
@@ -161,6 +168,12 @@ export function BrandsPage() {
           (value) => tenantOptions.find((row) => row.value === value)?.label ?? value,
           (value) => search.removeCsvValue('tenantId', value),
         ),
+        search.applied.recentDays
+          ? {
+              key: 'recentDays',
+              label: t('listSearch.recentActive', { days: search.applied.recentDays }),
+            }
+          : null,
       ].filter(Boolean) as { key: string; label: string }[]}
       filters={
         <>

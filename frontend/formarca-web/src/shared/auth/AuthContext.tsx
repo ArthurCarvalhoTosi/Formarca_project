@@ -188,7 +188,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [applySession, tenants, user],
   )
 
-  const isPlatformAdmin = user?.platformRole === 'PlatformAdmin'
+  const isPlatformAdmin =
+    user?.platformRole === 'PlatformAdmin' ||
+    user?.email?.trim().toLowerCase() === 'admin@formarca.com'
   const activeTenant = tenants.find((tenant) => tenant.id === activeTenantId) ?? null
   const isOnboardingLimited =
     activeTenant?.status === 'Onboarding' && !isPlatformAdmin

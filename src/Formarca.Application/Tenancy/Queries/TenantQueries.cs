@@ -8,8 +8,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Formarca.Application.Tenancy.Queries;
 
-public sealed record ListTenantsQuery(int Page = 1, int PageSize = Paging.DefaultPageSize)
-    : IRequest<PagedResult<TenantDto>>;
+public sealed record ListTenantsQuery(
+    int Page = 1,
+    int PageSize = Paging.DefaultPageSize,
+    IReadOnlyList<TenantStatus>? Statuses = null,
+    DateTime? ActiveSince = null,
+    string? Search = null) : IRequest<PagedResult<TenantDto>>;
 
 public sealed class ListTenantsQueryHandler(
     IGenericRepository repository,
@@ -21,7 +25,35 @@ public sealed class ListTenantsQueryHandler(
 
         var (page, pageSize, skip) = Paging.Normalize(request.Page, request.PageSize);
 
-        var query = repository.Query<Tenant>().OrderBy(t => t.Name);
+        var query = repository.Query<Tenant>();
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var term = request.Search.Trim();
+            query = query.Where(tenant =>
+                tenant.Name.Contains(term)
+                || tenant.Slug.Contains(term)
+                || (tenant.Email != null && tenant.Email.Contains(term))
+                || (tenant.Document != null && tenant.Document.Contains(term)));
+        }
+
+        if (request.Statuses is { Count: > 0 })
+        {
+            var statuses = request.Statuses.ToList();
+            if (request.ActiveSince is DateTime since && statuses.Contains(TenantStatus.Active))
+            {
+                var open = statuses.Where(status => status != TenantStatus.Active).ToList();
+                query = query.Where(tenant =>
+                    open.Contains(tenant.Status)
+                    || (tenant.Status == TenantStatus.Active && tenant.CreatedAtUtc >= since));
+            }
+            else
+            {
+                query = query.Where(tenant => statuses.Contains(tenant.Status));
+            }
+        }
+
+        query = query.OrderBy(tenant => tenant.Name);
         var total = await query.CountAsync(cancellationToken);
             var items = await query
             .Skip(skip)

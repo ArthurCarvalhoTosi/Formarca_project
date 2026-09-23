@@ -476,6 +476,11 @@ export const mockFunnel = {
       .filter((brand) =>
         classes.length > 0 ? classes.some((n) => brand.inpiClasses.includes(n)) : true,
       )
+      .filter((brand) => {
+        if (!filters.createdFrom) return true
+        const created = Date.parse(brand.createdAt ?? '')
+        return !Number.isNaN(created) && created >= Date.parse(filters.createdFrom)
+      })
       .map(clone)
   },
 
@@ -560,7 +565,13 @@ export const mockFunnel = {
       })
       .filter((contract) => {
         const statuses = splitCsv(filters.status)
-        return statuses.length === 0 || statuses.includes(contract.status)
+        if (statuses.length === 0) return true
+        if (!statuses.includes(contract.status)) return false
+        if (filters.activeSince && contract.status === 'Signed') {
+          const created = Date.parse(contract.generatedAtUtc ?? '')
+          return !Number.isNaN(created) && created >= Date.parse(filters.activeSince)
+        }
+        return true
       })
       .filter((contract) => {
         if (!from && !to) return true
@@ -760,7 +771,15 @@ export const mockFunnel = {
             ? invoice.tenantId === scoped
             : true,
       )
-      .filter((invoice) => statuses.length === 0 || statuses.includes(invoice.status))
+      .filter((invoice) => {
+        if (statuses.length === 0) return true
+        if (!statuses.includes(invoice.status)) return false
+        if (filters.activeSince && invoice.status === 'Paid') {
+          const created = Date.parse(invoice.createdAt ?? '')
+          return !Number.isNaN(created) && created >= Date.parse(filters.activeSince)
+        }
+        return true
+      })
       .filter((invoice) =>
         filters.contractId ? invoice.contractId === filters.contractId : true,
       )
@@ -885,9 +904,16 @@ export const mockFunnel = {
       )
       .filter((brand) => (brandIds.length > 0 ? brandIds.includes(brand.id) : true))
       .map(toDashboardItem)
-    const items = cards.filter((item) =>
-      stages.length > 0 ? stages.includes(item.funnelStage) : true,
-    )
+    const since = filters.activeSince ? Date.parse(filters.activeSince) : NaN
+    const items = cards.filter((item) => {
+      if (stages.length > 0 && !stages.includes(item.funnelStage)) return false
+      if (!Number.isNaN(since) && item.funnelStage === 'Process') {
+        const brand = brands.find((row) => row.id === item.brandId)
+        const created = Date.parse(brand?.createdAt ?? '')
+        return !Number.isNaN(created) && created >= since
+      }
+      return true
+    })
     const paged = paginate(items, filters.page, filters.pageSize)
     return { ...paged, kpis: dashboardKpis(cards) }
   },

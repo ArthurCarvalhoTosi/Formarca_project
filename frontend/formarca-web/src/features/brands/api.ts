@@ -20,6 +20,7 @@ export const brandsApi = {
         page: filters.page,
         pageSize: filters.pageSize,
         tenantId: filters.tenantId,
+        createdFrom: filters.createdFrom,
       })}`,
     )
     return asPaged<Brand>(data, filters.page, filters.pageSize)

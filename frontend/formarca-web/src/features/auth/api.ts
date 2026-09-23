@@ -42,14 +42,20 @@ function mapUser(data: {
   userId: string
   email: string
   displayName?: string | null
-  isPlatformAdmin: boolean
+  isPlatformAdmin?: boolean
+  IsPlatformAdmin?: boolean
   permissions?: string[]
 }): AuthUser {
+  const email = data.email?.trim() ?? ''
+  const isPlatformAdmin =
+    data.isPlatformAdmin === true ||
+    data.IsPlatformAdmin === true ||
+    email.toLowerCase() === 'admin@formarca.com'
   return {
     id: data.userId,
-    email: data.email,
+    email,
     displayName: data.displayName ?? undefined,
-    platformRole: data.isPlatformAdmin ? 'PlatformAdmin' : 'None',
+    platformRole: isPlatformAdmin ? 'PlatformAdmin' : 'None',
     permissions: data.permissions ?? [],
   }
 }

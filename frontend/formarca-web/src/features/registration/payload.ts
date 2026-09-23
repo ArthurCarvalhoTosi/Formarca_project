@@ -1,4 +1,4 @@
-import { maskCpf, maskPhone, maskTaxId, maskZipCode } from './masks'
+import { maskPhone, maskTaxId, maskZipCode } from './masks'
 import type { RegistrationDto, RegistrationPayload } from './types'
 import { onlyDigits } from './validation'
 
@@ -39,7 +39,7 @@ export function toFormValues(dto: RegistrationDto): RegistrationPayload {
     document: maskTaxId(dto.document),
     legalRepresentativeName: dto.legalRepresentativeName ?? '',
     legalRepresentativeDocument: dto.legalRepresentativeDocument
-      ? maskCpf(dto.legalRepresentativeDocument)
+      ? maskTaxId(dto.legalRepresentativeDocument)
       : '',
     quotedAmount: dto.quotedAmount ?? null,
     budgetNotes: dto.budgetNotes ?? '',

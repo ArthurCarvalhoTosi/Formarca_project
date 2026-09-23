@@ -1,14 +1,14 @@
 import { App, Button, Card, Col, Form, Input, InputNumber, Row, Select } from 'antd'
-import type { ChangeEvent } from 'react'
+import { useRef, type ChangeEvent } from 'react'
 import { BRAZIL_UFS, useI18n } from '@/shared/i18n'
-import { maskCpf, maskPhone, maskTaxId, maskZipCode } from './masks'
+import { maskPhone, maskTaxId, maskZipCode } from './masks'
 import type { RegistrationPayload } from './types'
 import {
   isBrazilUf,
   isValidBrPhone,
-  isValidCpf,
   isValidTaxId,
   isValidZipCode,
+  onlyDigits,
 } from './validation'
 import { lookupZipCode } from './viaCep'
 
@@ -30,8 +30,18 @@ export function RegistrationForm({
   const { t, dict } = useI18n()
   const { message } = App.useApp()
   const [form] = Form.useForm<RegistrationPayload>()
+  const representativeDocumentEdited = useRef(
+    onlyDigits(initialValues?.legalRepresentativeDocument ?? '') !== '' &&
+      onlyDigits(initialValues?.legalRepresentativeDocument ?? '') !==
+        onlyDigits(initialValues?.document ?? ''),
+  )
 
   const required = { required: true, message: t('validation.required') }
+
+  const syncRepresentativeDocument = (document: string) => {
+    if (representativeDocumentEdited.current) return
+    form.setFieldValue('legalRepresentativeDocument', document)
+  }
 
   const fillAddressFromZip = async (zipCode: string) => {
     if (!isValidZipCode(zipCode)) return
@@ -115,9 +125,11 @@ export function RegistrationForm({
             <Form.Item
               label={t('registration.fields.taxId')}
               name="document"
-              getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
-                maskTaxId(event.target.value)
-              }
+              getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) => {
+                const document = maskTaxId(event.target.value)
+                syncRepresentativeDocument(document)
+                return document
+              }}
               rules={[
                 required,
                 {
@@ -265,16 +277,21 @@ export function RegistrationForm({
             <Form.Item
               label={t('registration.fields.legalRepresentativeDocument')}
               name="legalRepresentativeDocument"
-              getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
-                maskCpf(event.target.value)
-              }
+              getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) => {
+                const document = maskTaxId(event.target.value)
+                const digits = onlyDigits(document)
+                representativeDocumentEdited.current =
+                  digits !== '' &&
+                  digits !== onlyDigits(form.getFieldValue('document') ?? '')
+                return document
+              }}
               rules={[
                 required,
                 {
                   validator: (_, value: string) =>
-                    isValidCpf(value ?? '')
+                    isValidTaxId(value ?? '')
                       ? Promise.resolve()
-                      : Promise.reject(new Error(t('validation.cpf'))),
+                      : Promise.reject(new Error(t('validation.taxId'))),
                 },
               ]}
             >

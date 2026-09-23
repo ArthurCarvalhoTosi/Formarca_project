@@ -116,6 +116,20 @@ public static class DatabaseSeeder
         var admin = await userManager.FindByEmailAsync(PlatformAdminEmail);
         if (admin is not null)
         {
+            if (!admin.IsPlatformAdmin || !admin.IsActive)
+            {
+                admin.IsPlatformAdmin = true;
+                admin.IsActive = true;
+                var update = await userManager.UpdateAsync(admin);
+                if (!update.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to update platform admin: {string.Join(", ", update.Errors.Select(e => e.Description))}");
+                }
+
+                logger.LogInformation("Updated platform admin flag for {Email}", PlatformAdminEmail);
+            }
+
             return;
         }
 

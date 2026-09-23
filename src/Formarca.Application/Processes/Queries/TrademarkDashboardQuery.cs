@@ -18,7 +18,11 @@ public sealed record ListTrademarkDashboardQuery(
     IReadOnlyList<Guid>? StatusIds,
     IReadOnlyList<TrademarkStatusPhase>? Phases,
     int Page = 1,
-    int PageSize = Paging.DefaultPageSize) : IRequest<TrademarkDashboardResult>;
+    int PageSize = Paging.DefaultPageSize,
+    IReadOnlyList<TrademarkStatusTone>? Tones = null,
+    bool IncludeWithoutStatus = false,
+    IReadOnlyList<TrademarkStatusTone>? ActiveTones = null,
+    DateTime? ActiveSince = null) : IRequest<TrademarkDashboardResult>;
 
 public sealed class ListTrademarkDashboardQueryHandler(
     ICurrentUser currentUser,
@@ -62,12 +66,14 @@ public sealed class ListTrademarkDashboardQueryHandler(
             }
         }
 
-        var processes = await query.ToListAsync(cancellationToken);
         var statuses = await repository.Query<TrademarkStatus>()
             .Where(status => !status.IsDeleted)
             .ToListAsync(cancellationToken);
         var statusById = statuses.ToDictionary(status => status.Id);
-        var kpis = BuildKpis(processes, statusById);
+        var kpiStatusIds = await query.Select(process => process.TrademarkStatusId).ToListAsync(cancellationToken);
+        var kpis = BuildKpis(kpiStatusIds, statusById);
+        query = NarrowToOpenAndRecentActive(query, statuses, request);
+        var processes = await query.ToListAsync(cancellationToken);
 
         IEnumerable<ProcessEntity> filtered = processes;
         if (request.StatusIds is { Count: > 0 })
@@ -86,6 +92,32 @@ public sealed class ListTrademarkDashboardQueryHandler(
                 && phases.Contains(status.Phase));
         }
 
+        if (request.Tones is { Count: > 0 }
+            || request.IncludeWithoutStatus
+            || request.ActiveTones is { Count: > 0 })
+        {
+            var tones = request.Tones?.ToHashSet() ?? [];
+            var activeTones = request.ActiveTones?.ToHashSet() ?? [];
+            var since = request.ActiveSince;
+            filtered = filtered.Where(process =>
+            {
+                if (process.TrademarkStatusId is not Guid statusId
+                    || !statusById.TryGetValue(statusId, out var status))
+                {
+                    return request.IncludeWithoutStatus;
+                }
+
+                if (tones.Contains(status.Tone))
+                {
+                    return true;
+                }
+
+                return since is DateTime activeSince
+                    && activeTones.Contains(status.Tone)
+                    && process.CreatedAtUtc >= activeSince;
+            });
+        }
+
         var matching = filtered
             .OrderByDescending(process => process.TrademarkStatusChangedAtUtc ?? process.CreatedAtUtc)
             .ThenBy(process => process.Id)
@@ -96,8 +128,42 @@ public sealed class ListTrademarkDashboardQueryHandler(
         return new TrademarkDashboardResult(items, kpis, matching.Count, page, pageSize);
     }
 
+    private static IQueryable<ProcessEntity> NarrowToOpenAndRecentActive(
+        IQueryable<ProcessEntity> query,
+        IReadOnlyList<TrademarkStatus> statuses,
+        ListTrademarkDashboardQuery request)
+    {
+        if (request.Tones is not { Count: > 0 }
+            && !request.IncludeWithoutStatus
+            && request.ActiveTones is not { Count: > 0 })
+        {
+            return query;
+        }
+
+        var openIds = statuses
+            .Where(status => request.Tones?.Contains(status.Tone) == true)
+            .Select(status => status.Id)
+            .ToList();
+        var activeIds = statuses
+            .Where(status => request.ActiveTones?.Contains(status.Tone) == true)
+            .Select(status => status.Id)
+            .ToList();
+        var includeWithout = request.IncludeWithoutStatus;
+        var since = request.ActiveSince;
+        var limitActive = since is not null && activeIds.Count > 0;
+        var activeSince = since ?? DateTime.MinValue;
+
+        return query.Where(process =>
+            (includeWithout && process.TrademarkStatusId == null)
+            || (process.TrademarkStatusId != null && openIds.Contains(process.TrademarkStatusId.Value))
+            || (limitActive
+                && process.TrademarkStatusId != null
+                && activeIds.Contains(process.TrademarkStatusId.Value)
+                && process.CreatedAtUtc >= activeSince));
+    }
+
     private static TrademarkDashboardKpisDto BuildKpis(
-        IReadOnlyList<ProcessEntity> processes,
+        IReadOnlyList<Guid?> statusIds,
         IReadOnlyDictionary<Guid, TrademarkStatus> statusById)
     {
         var phaseCounts = Enum.GetValues<TrademarkStatusPhase>()
@@ -108,9 +174,9 @@ public sealed class ListTrademarkDashboardQueryHandler(
         var activeRights = 0;
         var closed = 0;
 
-        foreach (var process in processes)
+        foreach (var trademarkStatusId in statusIds)
         {
-            if (process.TrademarkStatusId is not Guid statusId
+            if (trademarkStatusId is not Guid statusId
                 || !statusById.TryGetValue(statusId, out var status))
             {
                 withoutStatus++;
@@ -137,7 +203,7 @@ public sealed class ListTrademarkDashboardQueryHandler(
         }
 
         return new TrademarkDashboardKpisDto(
-            processes.Count,
+            statusIds.Count,
             withoutStatus,
             actionRequired,
             paused,

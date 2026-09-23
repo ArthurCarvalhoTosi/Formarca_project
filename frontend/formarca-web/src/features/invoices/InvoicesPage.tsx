@@ -7,10 +7,12 @@ import { asList } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import {
+  activeSinceFromRecentDays,
   csvChips,
   joinCsv,
   ListEmptyState,
   ListSearchLayout,
+  RECENT_ACTIVE_DAYS,
   splitCsv,
   toTablePagination,
   useListSearch,
@@ -28,6 +30,12 @@ const DEFAULT_FILTERS = {
   status: '',
   tenantId: '',
   contractId: '',
+  recentDays: '',
+}
+
+const OPEN_FILTERS = {
+  status: 'PendingPayment,AwaitingApproval,Rejected,Paid',
+  recentDays: String(RECENT_ACTIVE_DAYS),
 }
 
 function statusColor(status?: string) {
@@ -49,13 +57,17 @@ export function InvoicesPage() {
   const { t, locale, dict } = useI18n()
   const navigate = useNavigate()
   const { isPlatformAdmin } = useAuth()
-  const search = useListSearch(DEFAULT_FILTERS)
+  const search = useListSearch(DEFAULT_FILTERS, {
+    autoSearch: true,
+    initialFilters: OPEN_FILTERS,
+  })
   const canOpenSettings = isPlatformAdmin
 
   const filters = {
     status: search.applied.status || undefined,
     tenantId: isPlatformAdmin ? search.applied.tenantId || undefined : undefined,
     contractId: search.applied.contractId || undefined,
+    activeSince: activeSinceFromRecentDays(search.applied.recentDays),
     page: search.page,
     pageSize: search.pageSize,
   }
@@ -177,6 +189,12 @@ export function InvoicesPage() {
         ),
         search.applied.contractId
           ? { key: 'contractId', label: `${t('invoices.filterContract')}: ${search.applied.contractId}` }
+          : null,
+        search.applied.recentDays
+          ? {
+              key: 'recentDays',
+              label: t('listSearch.recentActive', { days: search.applied.recentDays }),
+            }
           : null,
       ].filter(Boolean) as { key: string; label: string }[]}
       filters={

@@ -32,6 +32,25 @@ public class RegistrationValidatorTests
     }
 
     [Fact]
+    public void Submit_Accepts_Cnpj_As_Legal_Representative_Document()
+    {
+        var result = new SubmitRegistrationCommandValidator().Validate(
+            ValidCommand() with { LegalRepresentativeDocument = "11222333000181" });
+        Assert.True(result.IsValid, string.Join("; ", result.Errors.Select(e => e.ErrorMessage)));
+    }
+
+    [Fact]
+    public void Submit_Rejects_Invalid_Legal_Representative_Document()
+    {
+        var result = new SubmitRegistrationCommandValidator().Validate(
+            ValidCommand() with { LegalRepresentativeDocument = "11222333000180" });
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            result.Errors,
+            e => e.PropertyName == nameof(SubmitRegistrationCommand.LegalRepresentativeDocument));
+    }
+
+    [Fact]
     public void Submit_Rejects_Invalid_Uf()
     {
         var result = new SubmitRegistrationCommandValidator().Validate(

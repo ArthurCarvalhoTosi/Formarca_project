@@ -6,10 +6,12 @@ import type { Tenant } from './types'
 import { useI18n } from '@/shared/i18n'
 import type { Dictionary } from '@/shared/i18n'
 import {
+  activeSinceFromRecentDays,
   csvChips,
   joinCsv,
   ListEmptyState,
   ListSearchLayout,
+  RECENT_ACTIVE_DAYS,
   splitCsv,
   toTablePagination,
   useListSearch,
@@ -24,6 +26,12 @@ import { TenantApprovalControls } from './TenantApprovalControls'
 const DEFAULT_FILTERS = {
   q: '',
   status: '',
+  recentDays: '',
+}
+
+const OPEN_FILTERS = {
+  status: 'Pending,Onboarding,Suspended,Active',
+  recentDays: String(RECENT_ACTIVE_DAYS),
 }
 
 function statusColor(status?: string) {
@@ -51,26 +59,24 @@ function statusLabel(status: string | undefined, dict: Dictionary): string {
   return status
 }
 
-function matches(row: Tenant, query: string, statusCsv: string): boolean {
-  const statuses = splitCsv(statusCsv)
-  if (statuses.length > 0 && !statuses.includes(row.status ?? '')) return false
-  const needle = query.trim().toLowerCase()
-  if (!needle) return true
-  const digits = needle.replace(/\D/g, '')
-  return [row.name, row.slug, row.document, row.email].some((value) => {
-    if (!value) return false
-    if (value.toLowerCase().includes(needle)) return true
-    return Boolean(digits) && value.replace(/\D/g, '').includes(digits)
-  })
-}
-
 export function TenantsPage() {
   const { t, dict } = useI18n()
-  const search = useListSearch(DEFAULT_FILTERS)
+  const search = useListSearch(DEFAULT_FILTERS, {
+    autoSearch: true,
+    initialFilters: OPEN_FILTERS,
+  })
 
+  const activeSince = activeSinceFromRecentDays(search.applied.recentDays)
   const query = useQuery({
-    queryKey: ['admin', 'tenants', search.page, search.pageSize],
-    queryFn: () => adminApi.listTenants({ page: search.page, pageSize: search.pageSize }),
+    queryKey: ['admin', 'tenants', search.page, search.pageSize, search.applied, activeSince],
+    queryFn: () =>
+      adminApi.listTenants({
+        page: search.page,
+        pageSize: search.pageSize,
+        q: search.applied.q || undefined,
+        status: search.applied.status || undefined,
+        activeSince,
+      }),
     enabled: search.hasSearched,
   })
 
@@ -100,10 +106,7 @@ export function TenantsPage() {
   )
 
   const tableViews = useTableViews({ tableKey: 'admin.tenants', columns })
-  const items = useMemo(
-    () => (query.data?.items ?? []).filter((row) => matches(row, search.applied.q, search.applied.status)),
-    [query.data?.items, search.applied.q, search.applied.status],
-  )
+  const items = query.data?.items ?? []
 
   return (
     <ListSearchLayout
@@ -117,6 +120,12 @@ export function TenantsPage() {
       errorFallback={`${t('admin.tenantsLoadError')} ${t('admin.tenantsLoadHint')}`}
       chips={[
         search.applied.q ? { key: 'q', label: `${t('common.search')}: ${search.applied.q}` } : null,
+        search.applied.recentDays
+          ? {
+              key: 'recentDays',
+              label: t('listSearch.recentActive', { days: search.applied.recentDays }),
+            }
+          : null,
         ...csvChips(
           search.applied.status,
           'status',

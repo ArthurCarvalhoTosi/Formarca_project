@@ -6,10 +6,12 @@ import dayjs from 'dayjs'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import {
+  activeSinceFromRecentDays,
   csvChips,
   joinCsv,
   ListEmptyState,
   ListSearchLayout,
+  RECENT_ACTIVE_DAYS,
   splitCsv,
   toTablePagination,
   useListSearch,
@@ -33,6 +35,12 @@ const DEFAULT_FILTERS = {
   status: '',
   from: '',
   to: '',
+  recentDays: '',
+}
+
+const OPEN_FILTERS = {
+  status: 'PreIssued,Issued,Signed',
+  recentDays: String(RECENT_ACTIVE_DAYS),
 }
 
 function statusColor(status?: string) {
@@ -54,7 +62,10 @@ export function ContractsPage() {
   const { t, locale, dict } = useI18n()
   const navigate = useNavigate()
   const { isPlatformAdmin } = useAuth()
-  const search = useListSearch(DEFAULT_FILTERS)
+  const search = useListSearch(DEFAULT_FILTERS, {
+    autoSearch: true,
+    initialFilters: OPEN_FILTERS,
+  })
 
   const filters = {
     clientName: search.applied.clientName.trim() || undefined,
@@ -64,6 +75,7 @@ export function ContractsPage() {
     status: search.applied.status || undefined,
     from: search.applied.from || undefined,
     to: search.applied.to || undefined,
+    activeSince: activeSinceFromRecentDays(search.applied.recentDays),
     page: search.page,
     pageSize: search.pageSize,
   }
@@ -201,6 +213,12 @@ export function ContractsPage() {
           (value) => statusLabel(value),
           (value) => search.removeCsvValue('status', value),
         ),
+        search.applied.recentDays
+          ? {
+              key: 'recentDays',
+              label: t('listSearch.recentActive', { days: search.applied.recentDays }),
+            }
+          : null,
         search.applied.from || search.applied.to
           ? {
               key: 'from',
