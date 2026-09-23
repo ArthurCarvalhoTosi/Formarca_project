@@ -2,9 +2,11 @@ using Formarca.Application.Common.Models;
 using Formarca.Application.Tenancy.Commands;
 using Formarca.Application.Tenancy.Queries;
 using Formarca.Domain.IdentityAccess;
+using Formarca.Web.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Formarca.Web.Controllers;
 
@@ -36,6 +38,7 @@ public sealed class RegistrationController(ISender sender) : ControllerBase
         string? BudgetNotes);
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingPolicies.Registration)]
     [HttpPost("api/registrations")]
     public async Task<IActionResult> Submit([FromBody] SubmitRegistrationRequest request, CancellationToken cancellationToken)
     {

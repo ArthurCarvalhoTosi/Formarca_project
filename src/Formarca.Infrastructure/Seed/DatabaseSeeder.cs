@@ -31,8 +31,23 @@ public static class DatabaseSeeder
         await SeedInvoiceSettingsAsync(db, cancellationToken);
         await SeedTrademarkStatusesAsync(db, cancellationToken);
         await SeedPlatformAdminAsync(userManager, logger, cancellationToken);
+        await EnsureLockoutEnabledForExistingUsersAsync(userManager, cancellationToken);
         await SeedDemoTenantAsync(db, repository, userManager, cancellationToken);
         await SeedDefaultGroupsForExistingTenantsAsync(db, repository, cancellationToken);
+    }
+
+    private static async Task EnsureLockoutEnabledForExistingUsersAsync(
+        UserManager<ApplicationUser> userManager,
+        CancellationToken cancellationToken)
+    {
+        var users = await userManager.Users
+            .Where(u => !u.LockoutEnabled)
+            .ToListAsync(cancellationToken);
+
+        foreach (var user in users)
+        {
+            await userManager.SetLockoutEnabledAsync(user, true);
+        }
     }
 
     private static async Task SeedPermissionsAsync(AppDbContext db, CancellationToken cancellationToken)

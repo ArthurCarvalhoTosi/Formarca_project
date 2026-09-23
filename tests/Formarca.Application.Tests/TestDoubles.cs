@@ -55,6 +55,14 @@ internal sealed class FakeIdentityService : IIdentityService
 
     public bool PasswordValid { get; set; }
 
+    public bool IsLockedOut { get; set; }
+
+    public int AccessFailedCallCount { get; private set; }
+
+    public int ResetAccessFailedCountCallCount { get; private set; }
+
+    public int CheckPasswordCallCount { get; private set; }
+
     public List<(string Email, string Password, string? DisplayName)> CreatedUsers { get; } = [];
 
     public Task<IdentityUserInfo?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
@@ -71,7 +79,25 @@ internal sealed class FakeIdentityService : IIdentityService
         => Task.FromResult(User is not null && User.Id == userId ? User : null);
 
     public Task<bool> CheckPasswordAsync(Guid userId, string password, CancellationToken cancellationToken = default)
-        => Task.FromResult(PasswordValid);
+    {
+        CheckPasswordCallCount++;
+        return Task.FromResult(PasswordValid);
+    }
+
+    public Task<bool> IsLockedOutAsync(Guid userId, CancellationToken cancellationToken = default)
+        => Task.FromResult(IsLockedOut);
+
+    public Task AccessFailedAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        AccessFailedCallCount++;
+        return Task.CompletedTask;
+    }
+
+    public Task ResetAccessFailedCountAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        ResetAccessFailedCountCallCount++;
+        return Task.CompletedTask;
+    }
 
     public Task<(bool Succeeded, Guid? UserId, IReadOnlyList<string> Errors)> CreateUserAsync(
         string email,

@@ -36,10 +36,18 @@ public sealed class LoginCommandHandler(
             throw new UnauthorizedAppException("User is inactive.");
         }
 
-        if (!await identity.CheckPasswordAsync(user.Id, request.Password, cancellationToken))
+        if (await identity.IsLockedOutAsync(user.Id, cancellationToken))
         {
             throw new UnauthorizedAppException("Invalid email or password.");
         }
+
+        if (!await identity.CheckPasswordAsync(user.Id, request.Password, cancellationToken))
+        {
+            await identity.AccessFailedAsync(user.Id, cancellationToken);
+            throw new UnauthorizedAppException("Invalid email or password.");
+        }
+
+        await identity.ResetAccessFailedCountAsync(user.Id, cancellationToken);
 
         var tenants = await AuthTokenIssuer.GetUserTenantsAsync(
             repository, user.Id, cancellationToken, includeNonActiveTenants: user.IsPlatformAdmin);

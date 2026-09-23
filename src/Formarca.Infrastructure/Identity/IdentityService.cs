@@ -26,6 +26,34 @@ public sealed class IdentityService(UserManager<ApplicationUser> userManager, IC
         return user is not null && await userManager.CheckPasswordAsync(user, password);
     }
 
+    public async Task<bool> IsLockedOutAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        return user is not null && await userManager.IsLockedOutAsync(user);
+    }
+
+    public async Task AccessFailedAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            return;
+        }
+
+        await userManager.AccessFailedAsync(user);
+    }
+
+    public async Task ResetAccessFailedCountAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            return;
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
+    }
+
     public async Task<(bool Succeeded, Guid? UserId, IReadOnlyList<string> Errors)> CreateUserAsync(
         string email,
         string password,

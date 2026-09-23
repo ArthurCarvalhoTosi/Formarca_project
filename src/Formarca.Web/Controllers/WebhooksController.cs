@@ -1,7 +1,9 @@
 using Formarca.Application.Contracts.Commands;
+using Formarca.Web.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
 
 namespace Formarca.Web.Controllers;
@@ -11,6 +13,7 @@ namespace Formarca.Web.Controllers;
 [Route("api/webhooks")]
 public sealed class WebhooksController(ISender sender) : ControllerBase
 {
+    [EnableRateLimiting(RateLimitingPolicies.Webhook)]
     [HttpPost("autentique")]
     public async Task<IActionResult> Autentique(CancellationToken cancellationToken)
     {
