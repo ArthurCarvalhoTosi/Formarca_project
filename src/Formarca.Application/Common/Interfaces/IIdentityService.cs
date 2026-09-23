@@ -16,6 +16,12 @@ public interface IIdentityService
 
     Task<bool> CheckPasswordAsync(Guid userId, string password, CancellationToken cancellationToken = default);
 
+    Task<bool> IsLockedOutAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    Task AccessFailedAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    Task ResetAccessFailedCountAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task<(bool Succeeded, Guid? UserId, IReadOnlyList<string> Errors)> CreateUserAsync(
         string email,
         string password,

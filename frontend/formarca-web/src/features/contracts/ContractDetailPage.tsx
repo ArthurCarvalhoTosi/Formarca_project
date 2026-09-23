@@ -20,10 +20,9 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { NICE_CLASSES } from '@/features/brands/types'
 import { PayInvoicePanel } from '@/features/invoices/PayInvoicePanel'
-import { maskCpf, maskTaxId, maskZipCode } from '@/features/registration/masks'
+import { maskTaxId, maskZipCode } from '@/features/registration/masks'
 import {
   isBrazilUf,
-  isValidCpf,
   isValidTaxId,
   isValidZipCode,
   onlyDigits,
@@ -312,7 +311,7 @@ export function ContractDetailPage() {
               initialValues={{
                 companyName: contract.companyName ?? contract.tenantName ?? '',
                 companyDocument: maskTaxId(contract.companyDocument),
-                representativeDocument: maskCpf(contract.representativeDocument),
+                representativeDocument: maskTaxId(contract.representativeDocument),
                 brandName: contract.brandName,
                 classes: parseClasses(contract.classes),
                 amount: contract.amount,
@@ -363,15 +362,15 @@ export function ContractDetailPage() {
                     label={t('contracts.fields.representativeDocument')}
                     name="representativeDocument"
                     getValueFromEvent={(event: ChangeEvent<HTMLInputElement>) =>
-                      maskCpf(event.target.value)
+                      maskTaxId(event.target.value)
                     }
                     rules={[
                       required,
                       {
                         validator: (_, value: string) =>
-                          isValidCpf(value ?? '')
+                          isValidTaxId(value ?? '')
                             ? Promise.resolve()
-                            : Promise.reject(new Error(t('validation.cpf'))),
+                            : Promise.reject(new Error(t('validation.taxId'))),
                       },
                     ]}
                   >

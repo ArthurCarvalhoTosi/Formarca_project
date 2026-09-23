@@ -89,4 +89,58 @@ public class TrademarkDashboardTests
         Assert.Contains("Deactivate", error.Message);
         Assert.False(status.IsDeleted);
     }
+
+    [Fact]
+    public async Task Open_Filter_Keeps_Pending_And_Important_Statuses()
+    {
+        var tenant = Tenant.Create("Acme Ltd", "acme", "00.000.000/0001-91");
+        var brand = Brand.Create(tenant.Id, "Delta", "Serviços de marca.");
+        var pending = Process.CreateGenerated(tenant.Id, brand.Id, Guid.NewGuid());
+        var attention = Process.CreateGenerated(tenant.Id, brand.Id, Guid.NewGuid());
+        var progress = Process.CreateGenerated(tenant.Id, brand.Id, Guid.NewGuid());
+        var requirement = TrademarkStatus.Create(
+            "exigencia-formal",
+            "Exigência formal",
+            "Há um prazo de 5 dias para cumprimento.",
+            30,
+            TrademarkStatusPhase.Filing,
+            TrademarkStatusTone.Attention);
+        var filed = TrademarkStatus.Create(
+            "deposito-efetuado",
+            "Depósito efetuado",
+            "O pedido foi recebido.",
+            10,
+            TrademarkStatusPhase.Filing,
+            TrademarkStatusTone.Progress);
+        attention.AssignTrademarkStatus(requirement.Id);
+        progress.AssignTrademarkStatus(filed.Id);
+
+        var repository = new InMemoryRepository();
+        repository.Add(tenant);
+        repository.Add(brand);
+        repository.Add(pending);
+        repository.Add(attention);
+        repository.Add(progress);
+        repository.Add(requirement);
+        repository.Add(filed);
+
+        var dashboard = await new ListTrademarkDashboardQueryHandler(
+                new FakeCurrentUser { IsPlatformAdmin = true },
+                repository,
+                new FakeTenantContext())
+            .Handle(
+                new ListTrademarkDashboardQuery(
+                    null,
+                    null,
+                    null,
+                    null,
+                    Tones: [TrademarkStatusTone.Attention, TrademarkStatusTone.Danger, TrademarkStatusTone.Paused],
+                    IncludeWithoutStatus: true),
+                CancellationToken.None);
+
+        Assert.Equal(2, dashboard.TotalCount);
+        Assert.Contains(dashboard.Items, item => item.ProcessId == pending.Id && item.Status is null);
+        Assert.Contains(dashboard.Items, item => item.Status?.Id == requirement.Id);
+        Assert.Equal(3, dashboard.Kpis.Total);
+    }
 }

@@ -17,7 +17,8 @@ public sealed record ListInvoicesQuery(
     Guid? ContractId,
     IReadOnlyList<InvoiceStatus>? Statuses,
     int Page = 1,
-    int PageSize = Paging.DefaultPageSize) : IRequest<PagedResult<InvoiceDto>>;
+    int PageSize = Paging.DefaultPageSize,
+    DateTime? ActiveSince = null) : IRequest<PagedResult<InvoiceDto>>;
 
 public sealed class ListInvoicesQueryHandler(
     ICurrentUser currentUser,
@@ -61,7 +62,17 @@ public sealed class ListInvoicesQueryHandler(
         if (request.Statuses is { Count: > 0 })
         {
             var statuses = request.Statuses.ToList();
-            query = query.Where(i => statuses.Contains(i.Status));
+            if (request.ActiveSince is DateTime since && statuses.Contains(InvoiceStatus.Paid))
+            {
+                var open = statuses.Where(status => status != InvoiceStatus.Paid).ToList();
+                query = query.Where(invoice =>
+                    open.Contains(invoice.Status)
+                    || (invoice.Status == InvoiceStatus.Paid && invoice.CreatedAtUtc >= since));
+            }
+            else
+            {
+                query = query.Where(invoice => statuses.Contains(invoice.Status));
+            }
         }
 
         var total = await query.CountAsync(cancellationToken);

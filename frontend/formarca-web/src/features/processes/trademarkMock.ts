@@ -262,10 +262,26 @@ export const trademarkMock = {
       return true
     })
     const kpis = buildKpis(scoped)
+    const tones = (filters.tone ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+    const activeTones = (filters.activeTone ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+    const since = filters.activeSince ? Date.parse(filters.activeSince) : NaN
     const filtered = scoped.filter((process) => {
       if (filters.statusId && process.status?.id !== filters.statusId) return false
       if (filters.phase && process.status?.phase !== filters.phase) return false
-      return true
+      if (tones.length === 0 && activeTones.length === 0 && !filters.includeWithoutStatus) return true
+      if (!process.status) return Boolean(filters.includeWithoutStatus)
+      if (tones.includes(process.status.tone)) return true
+      if (activeTones.includes(process.status.tone)) {
+        const created = Date.parse(process.createdAtUtc)
+        return !Number.isNaN(since) && !Number.isNaN(created) && created >= since
+      }
+      return tones.length === 0 && activeTones.length === 0
     })
     filtered.sort((a, b) => {
       const left = a.statusChangedAtUtc ?? a.createdAtUtc

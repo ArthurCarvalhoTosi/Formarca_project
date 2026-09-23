@@ -94,7 +94,8 @@ public sealed record ListProcessesDashboardQuery(
     IReadOnlyList<Guid>? BrandIds,
     IReadOnlyList<ProcessFunnelStage>? FunnelStages,
     int Page = 1,
-    int PageSize = Paging.DefaultPageSize) : IRequest<ProcessDashboardResult>;
+    int PageSize = Paging.DefaultPageSize,
+    DateTime? ActiveSince = null) : IRequest<ProcessDashboardResult>;
 
 public sealed class ListProcessesDashboardQueryHandler(
     ICurrentUser currentUser,
@@ -136,6 +137,15 @@ public sealed class ListProcessesDashboardQueryHandler(
             {
                 query = query.Where(b => brandIds.Contains(b.Id));
             }
+        }
+
+        if (request.ActiveSince is DateTime since)
+        {
+            var generatedBrandIds = repository.Query<ProcessEntity>()
+                .Where(process => !process.IsDeleted)
+                .Select(process => process.BrandId);
+            query = query.Where(brand =>
+                brand.CreatedAtUtc >= since || !generatedBrandIds.Contains(brand.Id));
         }
 
         var brands = await query

@@ -6,6 +6,7 @@ import { customersApi } from '@/features/customers/api'
 import { ApiError, asList } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
+import { recentActiveSince } from '@/shared/listSearch'
 import { ProcessStatusDrawer } from './ProcessStatusDrawer'
 import { trademarkApi } from './trademarkApi'
 import {
@@ -19,11 +20,14 @@ type TrademarkDashboardProps = {
 }
 
 const PAGE_SIZE = 9
+const OPEN_TONES = 'Attention,Danger,Paused'
+const ACTIVE_TONES = 'Progress,Success'
 
 export function TrademarkDashboard({ viewSwitch }: TrademarkDashboardProps) {
   const { t, dict, locale } = useI18n()
   const { isPlatformAdmin, hasPermission } = useAuth()
   const canManage = hasPermission('processes.manage')
+  const [openOnly, setOpenOnly] = useState(true)
   const [phase, setPhase] = useState<TrademarkPhase | ''>('')
   const [statusId, setStatusId] = useState('')
   const [brandId, setBrandId] = useState('')
@@ -31,21 +35,29 @@ export function TrademarkDashboard({ viewSwitch }: TrademarkDashboardProps) {
   const [page, setPage] = useState(1)
   const [openProcessId, setOpenProcessId] = useState<string | null>(null)
 
+  const showingOpen = openOnly && !phase && !statusId
   const filters = useMemo(
     () => ({
       phase: phase || undefined,
       statusId: statusId || undefined,
       brandId: brandId || undefined,
       tenantId: isPlatformAdmin ? tenantId || undefined : undefined,
+      tone: showingOpen ? OPEN_TONES : undefined,
+      includeWithoutStatus: showingOpen,
       page,
       pageSize: PAGE_SIZE,
     }),
-    [phase, statusId, brandId, tenantId, isPlatformAdmin, page],
+    [phase, statusId, brandId, tenantId, isPlatformAdmin, page, showingOpen],
   )
 
   const dashboardQuery = useQuery({
-    queryKey: ['trademark-dashboard', filters],
-    queryFn: () => trademarkApi.dashboard(filters),
+    queryKey: ['trademark-dashboard', filters, showingOpen],
+    queryFn: () =>
+      trademarkApi.dashboard({
+        ...filters,
+        activeTone: showingOpen ? ACTIVE_TONES : undefined,
+        activeSince: showingOpen ? recentActiveSince() : undefined,
+      }),
   })
 
   const statusesQuery = useQuery({
@@ -66,7 +78,9 @@ export function TrademarkDashboard({ viewSwitch }: TrademarkDashboardProps) {
 
   const kpis = dashboardQuery.data?.kpis ?? EMPTY_TRADEMARK_KPIS
   const items = dashboardQuery.data?.items ?? []
-  const hasFilters = Boolean(phase || statusId || brandId || tenantId)
+  const openCount = kpis.withoutStatus + kpis.actionRequired + kpis.paused + kpis.closed
+  const hasFilters =
+    Boolean(phase || statusId || brandId || tenantId) || (showingOpen && kpis.total > 0)
   const formatWhen = (value?: string | null) => {
     if (!value) return ''
     return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(value))
@@ -110,11 +124,31 @@ export function TrademarkDashboard({ viewSwitch }: TrademarkDashboardProps) {
             <Kpi label={t('trademark.kpiClosed')} value={kpis.closed} tone="danger" />
           </section>
 
+          {showingOpen ? (
+            <Typography.Paragraph type="secondary" style={{ margin: '0 0 12px' }}>
+              {t('trademark.openHint')}
+            </Typography.Paragraph>
+          ) : null}
+
           <div className="tm-rail" role="tablist" aria-label={t('trademark.filterPhase')}>
             <button
               type="button"
-              className={`tm-phase${phase === '' ? ' is-active' : ''}`}
+              className={`tm-phase${showingOpen ? ' is-active' : ''}`}
               onClick={() => {
+                setOpenOnly(true)
+                setPhase('')
+                setStatusId('')
+                resetPage()
+              }}
+            >
+              <span className="tm-phase-count">{openCount}</span>
+              <span>{t('trademark.openFilter')}</span>
+            </button>
+            <button
+              type="button"
+              className={`tm-phase${!openOnly && phase === '' ? ' is-active' : ''}`}
+              onClick={() => {
+                setOpenOnly(false)
                 setPhase('')
                 resetPage()
               }}
@@ -130,6 +164,7 @@ export function TrademarkDashboard({ viewSwitch }: TrademarkDashboardProps) {
                   type="button"
                   className={`tm-phase${phase === item ? ' is-active' : ''}`}
                   onClick={() => {
+                    setOpenOnly(false)
                     setPhase((current) => (current === item ? '' : item))
                     resetPage()
                   }}

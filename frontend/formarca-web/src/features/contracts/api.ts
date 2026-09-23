@@ -35,6 +35,7 @@ export const contractsApi = {
         status: filters.status,
         from: filters.from,
         to: filters.to,
+        activeSince: filters.activeSince,
         page: filters.page,
         pageSize: filters.pageSize,
       })}`,

@@ -98,6 +98,10 @@ export type TrademarkDashboardFilters = {
   brandId?: string
   statusId?: string
   phase?: TrademarkPhase | ''
+  tone?: string
+  activeTone?: string
+  includeWithoutStatus?: boolean
+  activeSince?: string
   page?: number
   pageSize?: number
 }

@@ -1,8 +1,10 @@
 using Formarca.Application.IdentityAccess.Auth.Commands;
 using Formarca.Application.IdentityAccess.Auth.Queries;
+using Formarca.Web.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Formarca.Web.Controllers;
 
@@ -15,6 +17,7 @@ public sealed class AuthController(ISender sender) : ControllerBase
     public sealed record SwitchTenantRequest(Guid TenantId);
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingPolicies.Login)]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
@@ -23,6 +26,7 @@ public sealed class AuthController(ISender sender) : ControllerBase
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingPolicies.Refresh)]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request, CancellationToken cancellationToken)
     {
@@ -31,6 +35,7 @@ public sealed class AuthController(ISender sender) : ControllerBase
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingPolicies.Refresh)]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout([FromBody] RefreshRequest request, CancellationToken cancellationToken)
     {

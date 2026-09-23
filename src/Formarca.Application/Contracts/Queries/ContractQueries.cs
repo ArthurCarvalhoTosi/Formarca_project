@@ -22,7 +22,8 @@ public sealed record ListContractsQuery(
     DateTime? From,
     DateTime? To,
     int Page = 1,
-    int PageSize = Paging.DefaultPageSize) : IRequest<PagedResult<ContractDto>>;
+    int PageSize = Paging.DefaultPageSize,
+    DateTime? ActiveSince = null) : IRequest<PagedResult<ContractDto>>;
 
 public sealed class ListContractsQueryHandler(
     ICurrentUser currentUser,
@@ -57,7 +58,17 @@ public sealed class ListContractsQueryHandler(
         if (request.Statuses is { Count: > 0 })
         {
             var statuses = request.Statuses.ToList();
-            query = query.Where(c => statuses.Contains(c.Status));
+            if (request.ActiveSince is DateTime since && statuses.Contains(ContractStatus.Signed))
+            {
+                var open = statuses.Where(status => status != ContractStatus.Signed).ToList();
+                query = query.Where(contract =>
+                    open.Contains(contract.Status)
+                    || (contract.Status == ContractStatus.Signed && contract.CreatedAtUtc >= since));
+            }
+            else
+            {
+                query = query.Where(contract => statuses.Contains(contract.Status));
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(request.Code))

@@ -137,6 +137,30 @@ export type Dictionary = {
     shortcutAdminHint: string
     shortcutStatuses: string
     shortcutStatusesHint: string
+    adminLead: string
+    opsTitle: string
+    opsLead: string
+    kpiPendingClients: string
+    kpiPendingClientsHint: string
+    kpiPendingBrands: string
+    kpiPendingBrandsHint: string
+    kpiInvoicesApproval: string
+    kpiInvoicesApprovalHint: string
+    kpiInvoicesPayment: string
+    kpiInvoicesPaymentHint: string
+    quickTitle: string
+    quickOnboarding: string
+    quickContracts: string
+    quickProcesses: string
+    quickBrands: string
+    boardClients: string
+    boardBrands: string
+    boardInvoices: string
+    seeAll: string
+    emptyClients: string
+    emptyBrands: string
+    emptyInvoices: string
+    opsLoadError: string
     faqTitle: string
     faqDurationQ: string
     faqDurationA: string
@@ -575,6 +599,8 @@ export type Dictionary = {
     kpiActive: string
     kpiClosed: string
     filterPhase: string
+    openFilter: string
+    openHint: string
     filterStatus: string
     filterBrand: string
     filterTenant: string
@@ -657,6 +683,7 @@ export type Dictionary = {
     emptyHint: string
     noResultsTitle: string
     noResultsDescription: string
+    recentActive: string
   }
   tableViews: {
     default: string

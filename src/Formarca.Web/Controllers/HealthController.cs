@@ -1,11 +1,14 @@
+using Formarca.Web.RateLimiting;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Reflection;
 
 namespace Formarca.Web.Controllers;
 
 [ApiController]
 [Route("api")]
+[EnableRateLimiting(RateLimitingPolicies.Health)]
 public sealed class HealthController : ControllerBase
 {
     [AllowAnonymous]

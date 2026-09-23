@@ -46,6 +46,7 @@ export type ContractListFilters = {
   status?: string
   from?: string
   to?: string
+  activeSince?: string
   page?: number
   pageSize?: number
 }

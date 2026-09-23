@@ -46,6 +46,7 @@ public sealed class ProcessesController(ISender sender) : ControllerBase
         [FromQuery] Guid? brandId,
         [FromQuery] string[]? brandIds,
         [FromQuery] string[]? funnelStage,
+        [FromQuery] DateTime? activeSince,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
@@ -55,7 +56,8 @@ public sealed class ProcessesController(ISender sender) : ControllerBase
                 QueryFilterValues.MergeGuids(brandId, brandIds),
                 QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<ProcessFunnelStage>(funnelStage)),
                 page,
-                pageSize),
+                pageSize,
+                activeSince),
             cancellationToken));
 
     [Authorize(Policy = PermissionCodes.ProcessesRead)]
@@ -68,6 +70,10 @@ public sealed class ProcessesController(ISender sender) : ControllerBase
         [FromQuery] Guid? statusId,
         [FromQuery] string[]? statusIds,
         [FromQuery] string[]? phase,
+        [FromQuery] string[]? tone,
+        [FromQuery] string[]? activeTone,
+        [FromQuery] DateTime? activeSince,
+        [FromQuery] bool includeWithoutStatus = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
@@ -78,7 +84,11 @@ public sealed class ProcessesController(ISender sender) : ControllerBase
                 QueryFilterValues.MergeGuids(statusId, statusIds),
                 QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<TrademarkStatusPhase>(phase)),
                 page,
-                pageSize),
+                pageSize,
+                QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<TrademarkStatusTone>(tone)),
+                includeWithoutStatus,
+                QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseEnums<TrademarkStatusTone>(activeTone)),
+                activeSince),
             cancellationToken));
 
     [Authorize(Policy = PermissionCodes.ProcessesRead)]

@@ -14,7 +14,8 @@ public sealed record ListBrandsQuery(
     string? Name,
     IReadOnlyList<int>? InpiClasses,
     int Page = 1,
-    int PageSize = Paging.DefaultPageSize) : IRequest<PagedResult<BrandDto>>;
+    int PageSize = Paging.DefaultPageSize,
+    DateTime? CreatedFrom = null) : IRequest<PagedResult<BrandDto>>;
 
 public sealed class ListBrandsQueryHandler(
     ICurrentUser currentUser,
@@ -60,6 +61,11 @@ public sealed class ListBrandsQueryHandler(
         {
             var classes = request.InpiClasses.ToList();
             query = query.Where(b => b.InpiClasses.Any(c => classes.Contains(c.Number)));
+        }
+
+        if (request.CreatedFrom is DateTime createdFrom)
+        {
+            query = query.Where(brand => brand.CreatedAtUtc >= createdFrom);
         }
 
         var total = await query.CountAsync(cancellationToken);

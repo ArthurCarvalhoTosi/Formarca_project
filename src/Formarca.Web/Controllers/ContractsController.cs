@@ -55,6 +55,7 @@ public sealed class ContractsController(ISender sender) : ControllerBase
         [FromQuery] string? document,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
+        [FromQuery] DateTime? activeSince,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
@@ -71,7 +72,8 @@ public sealed class ContractsController(ISender sender) : ControllerBase
                 from,
                 to,
                 page,
-                pageSize),
+                pageSize,
+                activeSince),
             cancellationToken));
 
     [Authorize(Policy = PermissionCodes.ContractsRead)]

@@ -35,6 +35,7 @@ export type InvoiceListFilters = {
   status?: string
   tenantId?: string
   contractId?: string
+  activeSince?: string
   page?: number
   pageSize?: number
 }

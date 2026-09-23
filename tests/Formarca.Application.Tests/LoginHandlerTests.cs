@@ -54,6 +54,72 @@ public class LoginHandlerTests
         Assert.Equal("User is not a member of the requested tenant.", ex.Message);
     }
 
+    [Fact]
+    public async Task Login_Wrong_Password_Records_Failed_Access()
+    {
+        var repository = new InMemoryRepository();
+        var userId = Guid.NewGuid();
+        var identity = new FakeIdentityService
+        {
+            User = new IdentityUserInfo(userId, "maria@acme.com", "Maria", false, true, true),
+            PasswordValid = false
+        };
+
+        var handler = new LoginCommandHandler(identity, repository, new FakeJwtTokenService(), new FakeTenantContext());
+        var ex = await Assert.ThrowsAsync<UnauthorizedAppException>(
+            () => handler.Handle(new LoginCommand("maria@acme.com", "WrongPassword"), CancellationToken.None));
+
+        Assert.Equal("Invalid email or password.", ex.Message);
+        Assert.Equal(1, identity.AccessFailedCallCount);
+        Assert.Equal(0, identity.ResetAccessFailedCountCallCount);
+    }
+
+    [Fact]
+    public async Task Login_Locked_Account_Rejects_Without_Password_Check()
+    {
+        var repository = new InMemoryRepository();
+        var userId = Guid.NewGuid();
+        var identity = new FakeIdentityService
+        {
+            User = new IdentityUserInfo(userId, "maria@acme.com", "Maria", false, true, true),
+            PasswordValid = true,
+            IsLockedOut = true
+        };
+
+        var handler = new LoginCommandHandler(identity, repository, new FakeJwtTokenService(), new FakeTenantContext());
+        var ex = await Assert.ThrowsAsync<UnauthorizedAppException>(
+            () => handler.Handle(new LoginCommand("maria@acme.com", "Password1"), CancellationToken.None));
+
+        Assert.Equal("Invalid email or password.", ex.Message);
+        Assert.Equal(0, identity.CheckPasswordCallCount);
+        Assert.Equal(0, identity.AccessFailedCallCount);
+        Assert.Equal(0, identity.ResetAccessFailedCountCallCount);
+    }
+
+    [Fact]
+    public async Task Login_Success_Resets_Failed_Access_Count()
+    {
+        var repository = new InMemoryRepository();
+        var tenant = TenantTestsTenant();
+        tenant.Approve();
+        repository.Add(tenant);
+
+        var userId = Guid.NewGuid();
+        repository.Add(UserTenantMembership.Create(userId, tenant.Id, isDefault: true));
+
+        var identity = new FakeIdentityService
+        {
+            User = new IdentityUserInfo(userId, "maria@acme.com", "Maria", false, true, true),
+            PasswordValid = true
+        };
+
+        var handler = new LoginCommandHandler(identity, repository, new FakeJwtTokenService(), new FakeTenantContext());
+        await handler.Handle(new LoginCommand("maria@acme.com", "Password1"), CancellationToken.None);
+
+        Assert.Equal(1, identity.ResetAccessFailedCountCallCount);
+        Assert.Equal(0, identity.AccessFailedCallCount);
+    }
+
     private static Tenant TenantTestsTenant() =>
         Tenant.Register(
             "Acme Ltd",

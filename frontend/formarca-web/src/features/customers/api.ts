@@ -13,13 +13,16 @@ import type {
 } from '@/features/registration/types'
 import { apiRequest } from '@/shared/api/client'
 import { ApiError } from '@/shared/api/types'
-import { asPaged, paginate } from '@/shared/api/types'
+import { asPaged } from '@/shared/api/types'
 import { env } from '@/shared/config/env'
 import type { CustomerListItem } from './types'
 
 type ListPaging = {
   page?: number
   pageSize?: number
+  q?: string
+  status?: string
+  activeSince?: string
 }
 
 function fromTenant(tenant: Tenant): CustomerListItem {
@@ -47,18 +50,26 @@ function fromRegistration(dto: RegistrationDto): CustomerListItem {
 export const customersApi = {
   async list(isPlatformAdmin: boolean, paging: ListPaging = {}) {
     if (isPlatformAdmin) {
-      if (env.mockAuth) {
-        return paginate<CustomerListItem>(mockListCustomerTenants(), paging.page, paging.pageSize)
-      }
-      return adminApi.listTenants(paging).then((result) => ({
+      const result = await adminApi.listTenants(paging)
+      return {
         ...result,
         items: result.items.map(fromTenant),
-      }))
+      }
     }
 
     const current = await registrationApi.getCurrent()
     const items = current ? [fromRegistration(current)] : []
     return asPaged<CustomerListItem>(items, paging.page, paging.pageSize)
+  },
+
+  async listAll(isPlatformAdmin: boolean): Promise<CustomerListItem[]> {
+    if (isPlatformAdmin) {
+      if (env.mockAuth) return mockListCustomerTenants()
+      const tenants = await adminApi.listAllTenants()
+      return tenants.map(fromTenant)
+    }
+    const current = await registrationApi.getCurrent()
+    return current ? [fromRegistration(current)] : []
   },
 
   async get(

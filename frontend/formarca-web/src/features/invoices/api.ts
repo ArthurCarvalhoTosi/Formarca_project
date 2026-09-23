@@ -26,6 +26,7 @@ export const invoicesApi = {
         status: filters.status,
         tenantId: filters.tenantId,
         contractId: filters.contractId,
+        activeSince: filters.activeSince,
         page: filters.page,
         pageSize: filters.pageSize,
       })}`,

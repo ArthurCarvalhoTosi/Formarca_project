@@ -52,6 +52,7 @@ export const processesApi = {
         tenantId: filters.tenantId,
         brandId: filters.brandId,
         funnelStage: filters.funnelStage,
+        activeSince: filters.activeSince,
         page: filters.page,
         pageSize: filters.pageSize,
       })}`,

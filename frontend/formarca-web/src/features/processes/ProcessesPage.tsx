@@ -8,10 +8,12 @@ import { asList } from '@/shared/api/types'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n } from '@/shared/i18n'
 import {
+  activeSinceFromRecentDays,
   csvChips,
   joinCsv,
   ListEmptyState,
   ListSearchLayout,
+  RECENT_ACTIVE_DAYS,
   splitCsv,
   toTablePagination,
   useListSearch,
@@ -34,13 +36,22 @@ const DEFAULT_FILTERS = {
   brandId: '',
   funnelStage: '',
   tenantId: '',
+  recentDays: '',
+}
+
+const OPEN_FILTERS = {
+  funnelStage: 'Brand,Contract,Invoice,Process',
+  recentDays: String(RECENT_ACTIVE_DAYS),
 }
 
 export function ProcessesPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { isPlatformAdmin } = useAuth()
-  const search = useListSearch(DEFAULT_FILTERS)
+  const search = useListSearch(DEFAULT_FILTERS, {
+    autoSearch: true,
+    initialFilters: OPEN_FILTERS,
+  })
   const [params, setParams] = useSearchParams()
   const viewParam = params.get('view')
   const view = viewParam === 'table' || viewParam === 'funnel' ? viewParam : 'status'
@@ -65,6 +76,7 @@ export function ProcessesPage() {
   const dashboardFilters = {
     brandId: search.applied.brandId || undefined,
     funnelStage: search.applied.funnelStage || undefined,
+    activeSince: activeSinceFromRecentDays(search.applied.recentDays),
     tenantId: isPlatformAdmin ? search.applied.tenantId || undefined : undefined,
     page: search.page,
     pageSize: search.pageSize,
@@ -182,6 +194,12 @@ export function ProcessesPage() {
           stageLabel,
           (value) => search.removeCsvValue('funnelStage', value),
         ),
+        search.applied.recentDays
+          ? {
+              key: 'recentDays',
+              label: t('listSearch.recentActive', { days: search.applied.recentDays }),
+            }
+          : null,
         ...csvChips(
           search.applied.tenantId,
           'tenantId',
@@ -189,7 +207,7 @@ export function ProcessesPage() {
           (value) => (tenantsQuery.data ?? []).find((row) => row.id === value)?.name ?? value,
           (value) => search.removeCsvValue('tenantId', value),
         ),
-      ]}
+      ].filter(Boolean) as { key: string; label: string }[]}
       filters={
         <>
           <Form.Item label={t('processes.filterBrand')}>

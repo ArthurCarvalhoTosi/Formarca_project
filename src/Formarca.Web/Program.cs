@@ -2,6 +2,7 @@ using Formarca.Application;
 using Formarca.Infrastructure;
 using Formarca.Web.Authorization;
 using Formarca.Web.Middleware;
+using Formarca.Web.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 
@@ -22,6 +23,7 @@ try
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddFormarcaAuthorization();
+    builder.Services.AddFormarcaRateLimiting(builder.Configuration);
     builder.Services.AddControllers().AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(
@@ -62,15 +64,17 @@ try
         app.UseCors("FrontendDev");
     }
     app.UseAuthentication();
+    app.UseRateLimiter();
     app.UseMiddleware<TenantResolutionMiddleware>();
     app.UseAuthorization();
     app.MapControllers();
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception ex) when (ex is not HostAbortedException)
 {
     Log.Fatal(ex, "Application terminated unexpectedly");
+    throw;
 }
 finally
 {

@@ -25,6 +25,7 @@ export type ProcessDashboardFilters = {
   tenantId?: string
   brandId?: string
   funnelStage?: FunnelStage | string
+  activeSince?: string
   page?: number
   pageSize?: number
 }

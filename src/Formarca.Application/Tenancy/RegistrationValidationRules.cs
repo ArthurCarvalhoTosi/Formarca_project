@@ -68,8 +68,8 @@ public static class RegistrationValidationRules
         Apply(validator);
         validator.RuleFor(x => x.LegalRepresentativeName).MaximumLength(200);
         validator.RuleFor(x => x.LegalRepresentativeDocument)
-            .Must(value => string.IsNullOrWhiteSpace(value) || BrazilianDocuments.IsValidCpf(value))
-            .WithMessage("Legal representative document must be a valid CPF.");
+            .Must(value => string.IsNullOrWhiteSpace(value) || BrazilianDocuments.IsValidCpfOrCnpj(value))
+            .WithMessage("Legal representative document must be a valid CPF or CNPJ.");
         validator.RuleFor(x => x.QuotedAmount)
             .GreaterThanOrEqualTo(0)
             .When(x => x.QuotedAmount.HasValue);

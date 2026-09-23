@@ -31,8 +31,23 @@ public static class DatabaseSeeder
         await SeedInvoiceSettingsAsync(db, cancellationToken);
         await SeedTrademarkStatusesAsync(db, cancellationToken);
         await SeedPlatformAdminAsync(userManager, logger, cancellationToken);
+        await EnsureLockoutEnabledForExistingUsersAsync(userManager, cancellationToken);
         await SeedDemoTenantAsync(db, repository, userManager, cancellationToken);
         await SeedDefaultGroupsForExistingTenantsAsync(db, repository, cancellationToken);
+    }
+
+    private static async Task EnsureLockoutEnabledForExistingUsersAsync(
+        UserManager<ApplicationUser> userManager,
+        CancellationToken cancellationToken)
+    {
+        var users = await userManager.Users
+            .Where(u => !u.LockoutEnabled)
+            .ToListAsync(cancellationToken);
+
+        foreach (var user in users)
+        {
+            await userManager.SetLockoutEnabledAsync(user, true);
+        }
     }
 
     private static async Task SeedPermissionsAsync(AppDbContext db, CancellationToken cancellationToken)
@@ -101,6 +116,20 @@ public static class DatabaseSeeder
         var admin = await userManager.FindByEmailAsync(PlatformAdminEmail);
         if (admin is not null)
         {
+            if (!admin.IsPlatformAdmin || !admin.IsActive)
+            {
+                admin.IsPlatformAdmin = true;
+                admin.IsActive = true;
+                var update = await userManager.UpdateAsync(admin);
+                if (!update.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to update platform admin: {string.Join(", ", update.Errors.Select(e => e.Description))}");
+                }
+
+                logger.LogInformation("Updated platform admin flag for {Email}", PlatformAdminEmail);
+            }
+
             return;
         }
 

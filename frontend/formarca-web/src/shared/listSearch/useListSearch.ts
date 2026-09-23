@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { splitCsv } from './csv'
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from './pagination'
@@ -34,6 +34,11 @@ function clampPageSize(value: number): number {
   return Math.min(100, value)
 }
 
+export type ListSearchOptions<T extends SearchFilters> = {
+  autoSearch?: boolean
+  initialFilters?: Partial<T>
+}
+
 export type UseListSearchResult<T extends SearchFilters> = {
   draft: T
   applied: T
@@ -56,21 +61,35 @@ export type UseListSearchResult<T extends SearchFilters> = {
 
 export function useListSearch<T extends SearchFilters>(
   defaultFilters: T,
+  options?: ListSearchOptions<T>,
 ): UseListSearchResult<T> {
   const defaultsRef = useRef(defaultFilters)
+  const optionsRef = useRef(options)
   const filterKeys = useMemo(
     () => Object.keys(defaultsRef.current) as (keyof T & string)[],
     [],
   )
   const [params, setParams] = useSearchParams()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [draft, setDraft] = useState<T>(() => readFilters(params, defaultsRef.current, filterKeys))
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const alreadySearched = params.get(SEARCHED_PARAM) === '1'
+    if (!alreadySearched && options?.autoSearch) return false
+    return true
+  })
+  const [draft, setDraft] = useState<T>(() => {
+    if (params.get(SEARCHED_PARAM) === '1' || !options?.autoSearch) {
+      return readFilters(params, defaultsRef.current, filterKeys)
+    }
+    return mergeFilters(defaultsRef.current, options.initialFilters)
+  })
 
-  const hasSearched = params.get(SEARCHED_PARAM) === '1'
-  const applied = useMemo(
-    () => (hasSearched ? readFilters(params, defaultsRef.current, filterKeys) : defaultsRef.current),
-    [filterKeys, hasSearched, params],
-  )
+  const urlSearched = params.get(SEARCHED_PARAM) === '1'
+  const autoSearch = optionsRef.current?.autoSearch === true
+  const hasSearched = urlSearched || autoSearch
+  const applied = useMemo(() => {
+    if (urlSearched) return readFilters(params, defaultsRef.current, filterKeys)
+    if (autoSearch) return mergeFilters(defaultsRef.current, optionsRef.current?.initialFilters)
+    return defaultsRef.current
+  }, [autoSearch, filterKeys, params, urlSearched])
   const page = Math.max(1, Number(params.get(PAGE_PARAM) || DEFAULT_PAGE) || DEFAULT_PAGE)
   const pageSize = clampPageSize(
     Number(params.get(PAGE_SIZE_PARAM) || DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE,
@@ -152,6 +171,13 @@ export function useListSearch<T extends SearchFilters>(
     [applied, pageSize, write],
   )
 
+  useEffect(() => {
+    if (!autoSearch || params.get(SEARCHED_PARAM) === '1') return
+    const initial = mergeFilters(defaultsRef.current, optionsRef.current?.initialFilters)
+    setDraft(initial)
+    write(initial, DEFAULT_PAGE, pageSize, true)
+  }, [autoSearch, pageSize, params, write])
+
   const setPage = useCallback(
     (nextPage: number, nextPageSize = pageSize) => {
       const pageToWrite = nextPageSize !== pageSize ? DEFAULT_PAGE : Math.max(1, nextPage)
@@ -179,6 +205,10 @@ export function useListSearch<T extends SearchFilters>(
     collapseSidebar: () => setSidebarOpen(false),
     setPage,
   }
+}
+
+function mergeFilters<T extends SearchFilters>(defaults: T, initial?: Partial<T>): T {
+  return { ...defaults, ...initial }
 }
 
 function readFilters<T extends SearchFilters>(

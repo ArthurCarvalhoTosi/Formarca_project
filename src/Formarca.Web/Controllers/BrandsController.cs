@@ -32,6 +32,7 @@ public sealed class BrandsController(ISender sender) : ControllerBase
         [FromQuery] string[]? tenantIds,
         [FromQuery] string? name,
         [FromQuery] string[]? inpiClass,
+        [FromQuery] DateTime? createdFrom,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = Paging.DefaultPageSize,
         CancellationToken cancellationToken = default)
@@ -49,7 +50,8 @@ public sealed class BrandsController(ISender sender) : ControllerBase
                 name,
                 QueryFilterValues.NullIfEmpty(QueryFilterValues.ParseInts(inpiClass)),
                 page,
-                pageSize),
+                pageSize,
+                createdFrom),
             cancellationToken));
     }
 

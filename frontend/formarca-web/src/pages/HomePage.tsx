@@ -17,6 +17,7 @@ import {
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/shared/auth/AuthContext'
 import { useI18n, type MessageKey } from '@/shared/i18n'
+import { AdminHomeDashboard } from './AdminHomeDashboard'
 
 const SITE_URL = 'https://formarca.com.br/'
 const EMAIL = 'contato@formarca.com.br'
@@ -147,7 +148,7 @@ export function HomePage() {
             {t('home.title')}
           </Typography.Title>
           <Typography.Paragraph type="secondary" className="page-header-description">
-            {welcome} {t('home.foundation')}
+            {welcome} {isPlatformAdmin ? t('home.adminLead') : t('home.foundation')}
           </Typography.Paragraph>
         </div>
       </header>
@@ -159,11 +160,11 @@ export function HomePage() {
         </Typography.Paragraph>
       ) : (
         <Typography.Paragraph type="secondary" className="home-tenant">
-          {user?.platformRole === 'PlatformAdmin'
-            ? t('home.noActiveTenantAdmin')
-            : t('home.noActiveTenant')}
+          {isPlatformAdmin ? t('home.noActiveTenantAdmin') : t('home.noActiveTenant')}
         </Typography.Paragraph>
       )}
+
+      {isPlatformAdmin ? <AdminHomeDashboard /> : null}
 
       {shortcuts.length > 0 ? (
         <section className="home-section" aria-labelledby="home-shortcuts-title">
@@ -187,6 +188,7 @@ export function HomePage() {
         </section>
       ) : null}
 
+      {!isPlatformAdmin ? (
       <section className="home-about" aria-labelledby="home-about-title">
         <div className="home-about-hero">
           <p className="home-eyebrow">{t('home.aboutEyebrow')}</p>
@@ -304,6 +306,7 @@ export function HomePage() {
           </div>
         </article>
       </section>
+      ) : null}
     </div>
   )
 }
