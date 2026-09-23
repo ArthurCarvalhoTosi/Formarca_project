@@ -29,6 +29,13 @@ public sealed class FormarcaWebApplicationFactory : WebApplicationFactory<Progra
     private static Dictionary<string, string?> HealthRateLimitOverrides() =>
         new()
         {
+            // appsettings*.json is gitignored, so CI has no connection string or JWT key.
+            // The host only needs these values to build; /api/health does not open SQL Server.
+            ["ConnectionStrings:DefaultConnection"] =
+                "Server=127.0.0.1,1433;Database=FormarcaTests;UID=sa;Password=Your_password123;TrustServerCertificate=True;",
+            ["Jwt:Issuer"] = "Formarca",
+            ["Jwt:Audience"] = "Formarca",
+            ["Jwt:Key"] = "FormarcaTestSecretKey_AtLeast32Characters!",
             ["RateLimiting:Health:PermitLimit"] = "2",
             ["RateLimiting:Health:WindowSeconds"] = "60"
         };
